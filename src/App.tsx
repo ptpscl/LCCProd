@@ -27,6 +27,9 @@ export default function App() {
 
     const unsubscribe = authService.subscribe((user) => {
       setCurrentUser(user);
+      if (!user) {
+        setCurrentView('home');
+      }
     });
     return unsubscribe;
   }, []);

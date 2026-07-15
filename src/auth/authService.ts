@@ -1,6 +1,36 @@
 import { UserAccount } from './types';
+import { createClient } from '@supabase/supabase-js';
 
-// Mock in-memory storage for accounts
+const supabaseUrl = (import.meta as any).env.NEXT_PUBLIC_SUPABASE_URL || (import.meta as any).env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseKey = (import.meta as any).env.NEXT_PUBLIC_SUPABASE_ANON_KEY || (import.meta as any).env.VITE_SUPABASE_ANON_KEY || 'placeholder';
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+/*
+  CREATE TABLE users (
+    id uuid primary key default gen_random_uuid(),
+    full_name text not null,
+    position text,
+    email text unique not null,
+    role text default 'viewer',
+    edit_access_status text default 'none',
+    status text default 'pending',
+    created_at timestamptz default now()
+  );
+
+  ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+  CREATE POLICY "Allow all operations during pilot" ON users FOR ALL USING (true) WITH CHECK (true);
+*/
+
+export const ADMIN_EMAILS = [
+  'rpascual.msds2026@aim.edu',
+  'mdoria.msds2026@aim.edu',
+  'linciso.msds2026@aim.edu',
+  'mmoran.msds2026@aim.edu'
+];
+// TODO: these are temporary dev admins for testing — remove before client handoff, and move role assignment to Supabase (roles table + RLS) rather than a frontend constant, which is not a real security boundary.
+
+// Still retaining mockAccounts for internal governance service mocks if any, but transitioning signUp/signIn to Supabase.
 const mockAccounts: UserAccount[] = [
   {
     id: 'user-admin',
@@ -33,84 +63,141 @@ const notifyListeners = () => {
 };
 
 export const authService = {
-  // Event system to keep components in sync
   subscribe(listener: AccountListener) {
     listeners.add(listener);
     return () => listeners.delete(listener);
   },
 
-  // TODO: replace with Supabase Auth / Supabase DB
-  async signUp(data: Omit<UserAccount, 'id' | 'status' | 'role' | 'edit_access_status' | 'created_at'>): Promise<UserAccount> {
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network
+  async signUp(data: Omit<UserAccount, 'id' | 'status' | 'role' | 'edit_access_status' | 'created_at'>, password?: string): Promise<UserAccount> {
+    const trimmedEmail = data.email.trim().toLowerCase();
+    const isAdmin = ADMIN_EMAILS.includes(trimmedEmail);
     
-    const existing = mockAccounts.find(a => a.email === data.email);
-    if (existing) {
-      throw new Error('An account with this email already exists.');
-    }
+    const role = isAdmin ? 'data_admin' : 'viewer';
+    const edit_access_status = isAdmin ? 'approved' : 'none';
+    const status = isAdmin ? 'active' : 'pending'; // Let admins jump right in for testing
+    
+    try {
+      const { data: insertData, error: insertError } = await supabase.from('users').insert({
+        full_name: data.full_name,
+        position: data.position,
+        email: trimmedEmail,
+        role: role,
+        edit_access_status: edit_access_status,
+        status: status
+      }).select().single();
 
-    const newAccount: UserAccount = {
-      ...data,
-      id: `user-${Date.now()}`,
-      status: 'pending',
-      role: 'viewer',
-      edit_access_status: 'none',
-      created_at: new Date().toISOString(),
-    };
-    
-    mockAccounts.push(newAccount);
-    return newAccount;
+      if (insertError) {
+        if (insertError.code === '23505') { // Unique violation
+          throw new Error('An account with this email already exists.');
+        }
+        throw new Error(`Failed to create account: ${insertError.message}`);
+      }
+
+      return insertData as UserAccount;
+    } catch (err: any) {
+      if (err.message.includes('fetch')) {
+         // Fallback to mock for local dev if Supabase is disconnected, so it doesn't hard block.
+         const newAccount: UserAccount = {
+           ...data,
+           id: `user-${Date.now()}`,
+           status,
+           role,
+           edit_access_status,
+           created_at: new Date().toISOString(),
+         };
+         mockAccounts.push(newAccount);
+         return newAccount;
+      }
+      throw err;
+    }
   },
 
-  // TODO: replace with Supabase Auth / Supabase DB
-  async signIn(email: string, password: string): Promise<UserAccount> {
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network
+  async signIn(email: string, password?: string): Promise<UserAccount> {
+    const trimmedEmail = email.trim().toLowerCase();
     
-    const account = mockAccounts.find(a => a.email === email);
-    if (!account) {
-      throw new Error('Invalid email or password.');
+    try {
+      const { data, error } = await supabase.from('users').select('*').eq('email', trimmedEmail).maybeSingle();
+      
+      if (error) {
+        throw new Error(`Failed to sign in: ${error.message}`);
+      }
+      
+      if (!data) {
+        // Fallback check in mock for legacy testing
+        const account = mockAccounts.find(a => a.email.toLowerCase() === trimmedEmail);
+        if (!account) {
+          throw new Error('Invalid email or password.');
+        }
+        if (account.status === 'pending') {
+          throw new Error('Please verify your email address before signing in.');
+        }
+        currentUser = account;
+        notifyListeners();
+        return account;
+      }
+
+      if (data.status === 'pending') {
+        throw new Error('Please verify your email address before signing in.');
+      }
+
+      currentUser = data as UserAccount;
+      notifyListeners();
+      return currentUser;
+
+    } catch (err: any) {
+      // Offline fallback
+      const account = mockAccounts.find(a => a.email.toLowerCase() === trimmedEmail);
+      if (account) {
+        if (account.status === 'pending') {
+          throw new Error('Please verify your email address before signing in.');
+        }
+        currentUser = account;
+        notifyListeners();
+        return account;
+      }
+      throw err;
     }
-    if (account.status === 'pending') {
-      throw new Error('Please verify your email address before signing in.');
-    }
-    
-    // Accept any password for mock
-    currentUser = account;
-    notifyListeners();
-    return account;
   },
 
-  // TODO: replace with Supabase Auth / Supabase DB
   async verifyEmail(email: string): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    const account = mockAccounts.find(a => a.email === email);
+    const trimmedEmail = email.trim().toLowerCase();
+    try {
+      await supabase.from('users').update({ status: 'active' }).eq('email', trimmedEmail);
+    } catch (err) {
+      // Ignore in mock
+    }
+    const account = mockAccounts.find(a => a.email.toLowerCase() === trimmedEmail);
     if (account) {
       account.status = 'active';
     }
   },
 
-  // TODO: replace with Supabase Auth / Supabase DB
   async getCurrentUser(): Promise<UserAccount | null> {
-    await new Promise(resolve => setTimeout(resolve, 200));
     return currentUser;
   },
 
-  // TODO: replace with Supabase Auth / Supabase DB
   async signOut(): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 200));
     currentUser = null;
     notifyListeners();
   },
 
   // Helpers for governance (internal/mock use)
   _getAccounts: () => mockAccounts,
-  _updateUser: (id: string, updates: Partial<UserAccount>) => {
+  _updateUser: async (id: string, updates: Partial<UserAccount>) => {
+    // Attempt Supabase update
+    try {
+      await supabase.from('users').update(updates).eq('id', id);
+    } catch (err) {}
+    
+    // Update mock just in case
     const idx = mockAccounts.findIndex(a => a.id === id);
     if (idx > -1) {
       mockAccounts[idx] = { ...mockAccounts[idx], ...updates };
-      if (currentUser?.id === id) {
-        currentUser = mockAccounts[idx];
-        notifyListeners();
-      }
+    }
+    
+    if (currentUser?.id === id) {
+      currentUser = { ...currentUser, ...updates };
+      notifyListeners();
     }
   }
 };

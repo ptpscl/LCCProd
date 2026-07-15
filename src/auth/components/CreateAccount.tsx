@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { authService } from '../authService';
+import { authService, ADMIN_EMAILS } from '../authService';
 import { governanceService } from '../../governance/governanceService';
+import { eventsService } from '../../eventsService';
 
 interface CreateAccountProps {
   onAccountCreated: (email: string) => void;
@@ -25,8 +26,11 @@ export default function CreateAccount({ onAccountCreated, onNavigateToLogin }: C
     setPasswordError('');
     setSubmitError('');
 
-    if (!email.endsWith('@lcc.com.ph')) {
-      setEmailError('Please use your LCC email (@lcc.com.ph)');
+    const trimmedEmail = email.trim().toLowerCase();
+    const isTempAdmin = ADMIN_EMAILS.includes(trimmedEmail);
+
+    if (!isTempAdmin && !trimmedEmail.endsWith('@lccgroup.com')) {
+      setEmailError('Please use your LCC email (@lccgroup.com).');
       isValid = false;
     }
 
@@ -50,10 +54,18 @@ export default function CreateAccount({ onAccountCreated, onNavigateToLogin }: C
       await authService.signUp({
         full_name: fullName,
         position: position,
-        email: email,
-      });
+        email: email.trim(),
+      }, password);
       governanceService._notifyAdminNewUser(fullName);
-      onAccountCreated(email);
+      
+      eventsService.logEvent({
+        dataset: 'System',
+        action: 'Sign Up',
+        detail: `New account created: ${email.trim()}`,
+        user: fullName,
+      });
+
+      onAccountCreated(email.trim());
     } catch (err: any) {
       setSubmitError(err.message || 'Failed to create account');
     } finally {
@@ -110,7 +122,7 @@ export default function CreateAccount({ onAccountCreated, onNavigateToLogin }: C
             value={email}
             onChange={(e) => { setEmail(e.target.value); setEmailError(''); }}
             className={`w-full px-4 py-2.5 bg-surface-bg border ${emailError ? 'border-error/60 focus:border-error focus:ring-error/20' : 'border-border-subtle focus:border-brand-600 focus:ring-brand-600/20'} rounded-[8px] text-[14px] text-text-main focus:outline-none focus:ring-2 transition-colors`}
-            placeholder="name@lcc.com.ph"
+            placeholder="name@lccgroup.com"
             required
           />
           {emailError && <p className="text-[12px] text-error mt-1">{emailError}</p>}
