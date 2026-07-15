@@ -1,0 +1,6 @@
+{
+  "name": "LCC Data Console",
+  "description": "Internal desktop tool for supermarket category managers to upload and validate transaction data.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
