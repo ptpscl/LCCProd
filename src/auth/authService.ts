@@ -7,8 +7,9 @@ const supabaseKey = (import.meta as any).env.NEXT_PUBLIC_SUPABASE_ANON_KEY || (i
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 /*
+  -- RUN THIS IN SUPABASE SQL EDITOR TO CREATE THE TABLE:
   CREATE TABLE users (
-    id uuid primary key default gen_random_uuid(),
+    id uuid references auth.users(id) on delete cascade not null primary key,
     full_name text not null,
     position text,
     email text unique not null,
@@ -77,7 +78,27 @@ export const authService = {
     const status = isAdmin ? 'active' : 'pending'; // Let admins jump right in for testing
     
     try {
+      if (!password) throw new Error("Password is required for real sign up.");
+
+      // 1. Sign up with Supabase Auth (This is what actually sends the verification email)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password: password,
+      });
+
+      if (authError) {
+        if (authError.message.includes('already registered')) {
+          throw new Error('An account with this email already exists.');
+        }
+        throw new Error(`Auth Error: ${authError.message}`);
+      }
+      
+      const authUserId = authData.user?.id;
+      if (!authUserId) throw new Error("Failed to create authentication session.");
+
+      // 2. Insert the user's profile details into our public `users` table
       const { data: insertData, error: insertError } = await supabase.from('users').insert({
+        id: authUserId,
         full_name: data.full_name,
         position: data.position,
         email: trimmedEmail,
@@ -87,10 +108,7 @@ export const authService = {
       }).select().single();
 
       if (insertError) {
-        if (insertError.code === '23505') { // Unique violation
-          throw new Error('An account with this email already exists.');
-        }
-        throw new Error(`Failed to create account: ${insertError.message}`);
+        throw new Error(`Failed to save user profile: ${insertError.message}`);
       }
 
       return insertData as UserAccount;
@@ -116,10 +134,26 @@ export const authService = {
     const trimmedEmail = email.trim().toLowerCase();
     
     try {
+      if (!password) throw new Error("Password required.");
+
+      // 1. Authenticate with Supabase Auth (Checks password & email verification status)
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password: password,
+      });
+
+      if (authError) {
+        if (authError.message.includes('Email not confirmed')) {
+           throw new Error('Please verify your email address before signing in. Check your inbox.');
+        }
+        throw new Error(`Invalid email or password.`);
+      }
+
+      // 2. Fetch their role and metadata from our `users` table
       const { data, error } = await supabase.from('users').select('*').eq('email', trimmedEmail).maybeSingle();
       
       if (error) {
-        throw new Error(`Failed to sign in: ${error.message}`);
+        throw new Error(`Failed to load profile: ${error.message}`);
       }
       
       if (!data) {
@@ -136,14 +170,15 @@ export const authService = {
         return account;
       }
 
+      // If Supabase let them log in, their email IS verified! 
       if (data.status === 'pending') {
-        throw new Error('Please verify your email address before signing in.');
+         await supabase.from('users').update({ status: 'active' }).eq('id', authData.user.id);
+         data.status = 'active';
       }
 
       currentUser = data as UserAccount;
       notifyListeners();
       return currentUser;
-
     } catch (err: any) {
       // Offline fallback
       const account = mockAccounts.find(a => a.email.toLowerCase() === trimmedEmail);
@@ -173,10 +208,28 @@ export const authService = {
   },
 
   async getCurrentUser(): Promise<UserAccount | null> {
+    if (currentUser) return currentUser;
+
+    // Check if there is an active session (e.g. from page reload)
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        const { data } = await supabase.from('users').select('*').eq('email', session.user.email).maybeSingle();
+        if (data) {
+           currentUser = data as UserAccount;
+           notifyListeners();
+           return currentUser;
+        }
+      }
+    } catch (err) {}
+
     return currentUser;
   },
 
   async signOut(): Promise<void> {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {}
     currentUser = null;
     notifyListeners();
   },
