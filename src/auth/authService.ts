@@ -63,6 +63,24 @@ const notifyListeners = () => {
   listeners.forEach(l => l(currentUser));
 };
 
+// Listen for magic link redirects or auth state changes
+supabase.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'SIGNED_IN' && session?.user?.email) {
+    const { data } = await supabase.from('users').select('*').eq('email', session.user.email).maybeSingle();
+    if (data) {
+       if (data.status === 'pending') {
+         await supabase.from('users').update({ status: 'active' }).eq('id', session.user.id);
+         data.status = 'active';
+       }
+       currentUser = data as UserAccount;
+       notifyListeners();
+    }
+  } else if (event === 'SIGNED_OUT') {
+    currentUser = null;
+    notifyListeners();
+  }
+});
+
 export const authService = {
   subscribe(listener: AccountListener) {
     listeners.add(listener);
@@ -84,6 +102,9 @@ export const authService = {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: trimmedEmail,
         password: password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/?verified=true`
+        }
       });
 
       if (authError) {
@@ -210,12 +231,16 @@ export const authService = {
   async getCurrentUser(): Promise<UserAccount | null> {
     if (currentUser) return currentUser;
 
-    // Check if there is an active session (e.g. from page reload)
+    // Check if there is an active session (e.g. from page reload or magic link redirect)
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.email) {
         const { data } = await supabase.from('users').select('*').eq('email', session.user.email).maybeSingle();
         if (data) {
+           if (data.status === 'pending') {
+             await supabase.from('users').update({ status: 'active' }).eq('id', session.user.id);
+             data.status = 'active';
+           }
            currentUser = data as UserAccount;
            notifyListeners();
            return currentUser;

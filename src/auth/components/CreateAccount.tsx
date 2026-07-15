@@ -10,7 +10,7 @@ interface CreateAccountProps {
 
 export default function CreateAccount({ onAccountCreated, onNavigateToLogin }: CreateAccountProps) {
   const [fullName, setFullName] = useState('');
-  const [position, setPosition] = useState('Category Manager');
+  const [position, setPosition] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -101,18 +101,14 @@ export default function CreateAccount({ onAccountCreated, onNavigateToLogin }: C
 
         <div className="space-y-1.5">
           <label className="block text-[13px] font-medium text-text-main">Position</label>
-          <select
+          <input
+            type="text"
             value={position}
             onChange={(e) => setPosition(e.target.value)}
-            className="w-full px-4 py-2.5 bg-surface-bg border border-border-subtle rounded-[8px] text-[14px] text-text-main focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600 transition-colors cursor-pointer appearance-none"
+            className="w-full px-4 py-2.5 bg-surface-bg border border-border-subtle rounded-[8px] text-[14px] text-text-main focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600 transition-colors"
+            placeholder="e.g. Category Manager"
             required
-          >
-            <option value="Category Manager">Category Manager</option>
-            <option value="Buyer">Buyer</option>
-            <option value="Data Analyst">Data Analyst</option>
-            <option value="Data Admin">Data Admin</option>
-            <option value="Other">Other</option>
-          </select>
+          />
         </div>
 
         <div className="space-y-1.5">
@@ -133,7 +129,14 @@ export default function CreateAccount({ onAccountCreated, onNavigateToLogin }: C
           <input
             type="password"
             value={password}
-            onChange={(e) => { setPassword(e.target.value); setPasswordError(''); }}
+            onChange={(e) => { 
+              setPassword(e.target.value); 
+              if (confirmPassword && e.target.value !== confirmPassword) {
+                setPasswordError('Passwords do not match');
+              } else {
+                setPasswordError('');
+              }
+            }}
             className={`w-full px-4 py-2.5 bg-surface-bg border ${passwordError ? 'border-error/60 focus:border-error focus:ring-error/20' : 'border-border-subtle focus:border-brand-600 focus:ring-brand-600/20'} rounded-[8px] text-[14px] text-text-main focus:outline-none focus:ring-2 transition-colors`}
             placeholder="••••••••"
             required
@@ -145,7 +148,14 @@ export default function CreateAccount({ onAccountCreated, onNavigateToLogin }: C
           <input
             type="password"
             value={confirmPassword}
-            onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(''); }}
+            onChange={(e) => { 
+              setConfirmPassword(e.target.value); 
+              if (password !== e.target.value) {
+                setPasswordError('Passwords do not match');
+              } else {
+                setPasswordError('');
+              }
+            }}
             className={`w-full px-4 py-2.5 bg-surface-bg border ${passwordError ? 'border-error/60 focus:border-error focus:ring-error/20' : 'border-border-subtle focus:border-brand-600 focus:ring-brand-600/20'} rounded-[8px] text-[14px] text-text-main focus:outline-none focus:ring-2 transition-colors`}
             placeholder="••••••••"
             required

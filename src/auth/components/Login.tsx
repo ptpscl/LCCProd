@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { authService } from '../authService';
 
 interface LoginProps {
@@ -7,10 +7,28 @@ interface LoginProps {
 }
 
 export default function Login({ onLoginSuccess, onNavigateToSignUp }: LoginProps) {
-  const [email, setEmail] = useState('cm@lcc.com.ph');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('lcc_remembered_email');
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+
+    // Check if user just verified their email
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('verified') === 'true') {
+      setSuccessMsg('Email verified successfully! You can now sign in.');
+      // Clean up URL so it doesn't persist on refresh
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
 
   const handleSubmit = async (e: import('react').FormEvent) => {
     e.preventDefault();
@@ -19,6 +37,13 @@ export default function Login({ onLoginSuccess, onNavigateToSignUp }: LoginProps
 
     try {
       await authService.signIn(email, password);
+      
+      if (rememberMe) {
+        localStorage.setItem('lcc_remembered_email', email.trim());
+      } else {
+        localStorage.removeItem('lcc_remembered_email');
+      }
+      
       onLoginSuccess();
     } catch (err: any) {
       setError(err.message || 'Failed to sign in');
@@ -35,6 +60,11 @@ export default function Login({ onLoginSuccess, onNavigateToSignUp }: LoginProps
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
+        {successMsg && (
+          <div className="p-3 bg-brand-50 border border-brand-200 rounded-[8px] text-brand-700 text-[13px] font-medium text-center">
+            {successMsg}
+          </div>
+        )}
         {error && (
           <div className="p-3 bg-error/10 border border-error/20 rounded-[8px] text-error text-[13px] font-medium">
             {error}
@@ -48,7 +78,7 @@ export default function Login({ onLoginSuccess, onNavigateToSignUp }: LoginProps
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full px-4 py-2.5 bg-surface-bg border border-border-subtle rounded-[8px] text-[14px] text-text-main focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600 transition-colors"
-            placeholder="name@lcc.com.ph"
+            placeholder="name@lccgroup.com"
             required
           />
         </div>
@@ -63,6 +93,19 @@ export default function Login({ onLoginSuccess, onNavigateToSignUp }: LoginProps
             placeholder="••••••••"
             required
           />
+        </div>
+
+        <div className="flex items-center">
+          <input
+            id="remember-me"
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="w-4 h-4 text-brand-600 bg-surface-bg border-border-subtle rounded focus:ring-brand-600/20 focus:ring-2 cursor-pointer"
+          />
+          <label htmlFor="remember-me" className="ml-2 block text-[13px] text-text-main cursor-pointer select-none">
+            Remember me
+          </label>
         </div>
 
         <button

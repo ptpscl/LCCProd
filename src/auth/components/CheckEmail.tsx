@@ -33,16 +33,13 @@ export default function CheckEmail({ email, onNavigateToLogin }: CheckEmailProps
       <div className="flex flex-col space-y-3 w-full">
         <button
           onClick={onNavigateToLogin}
+          type="button"
           className="w-full py-2.5 bg-brand-600 text-white text-[14px] font-semibold rounded-[8px] hover:bg-brand-700 transition-colors cursor-pointer"
         >
           Back to login
         </button>
-        
-        <button className="w-full py-2.5 bg-white border border-border-subtle text-text-main text-[14px] font-medium rounded-[8px] hover:bg-surface-bg transition-colors cursor-pointer">
-          Resend email
-        </button>
       </div>
-
+      
       <div className="mt-8 pt-6 border-t border-border-subtle w-full text-center">
         <button
           onClick={handleSimulateVerify}
