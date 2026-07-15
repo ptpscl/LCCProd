@@ -66,6 +66,12 @@ const notifyListeners = () => {
 // Listen for magic link redirects or auth state changes
 supabase.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session?.user?.email) {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('verified') === 'true') {
+      await supabase.auth.signOut();
+      return;
+    }
+
     const { data } = await supabase.from('users').select('*').eq('email', session.user.email).maybeSingle();
     if (data) {
        if (data.status === 'pending') {
@@ -229,6 +235,12 @@ export const authService = {
   },
 
   async getCurrentUser(): Promise<UserAccount | null> {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('verified') === 'true') {
+      await supabase.auth.signOut();
+      return null;
+    }
+
     if (currentUser) return currentUser;
 
     // Check if there is an active session (e.g. from page reload or magic link redirect)
