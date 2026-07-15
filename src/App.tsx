@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import AuthFlow from './auth/AuthFlow';
@@ -10,12 +10,26 @@ import SilverView from './datasets/components/SilverView';
 import GoldView from './datasets/components/GoldView';
 import UploadBatchModal from './datasets/components/UploadBatchModal';
 import { UserAccount } from './auth/types';
+import { authService } from './auth/authService';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [currentView, setCurrentView] = useState<string>('home');
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const user = await authService.getCurrentUser();
+      setCurrentUser(user);
+    };
+    fetchUser();
+
+    const unsubscribe = authService.subscribe((user) => {
+      setCurrentUser(user);
+    });
+    return unsubscribe;
+  }, []);
 
   if (!currentUser) {
     return <AuthFlow onAuthenticated={setCurrentUser} />;
