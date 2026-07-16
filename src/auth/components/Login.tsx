@@ -4,14 +4,15 @@ import { authService } from '../authService';
 interface LoginProps {
   onLoginSuccess: () => void;
   onNavigateToSignUp: () => void;
+  initialMessage?: string;
 }
 
-export default function Login({ onLoginSuccess, onNavigateToSignUp }: LoginProps) {
+export default function Login({ onLoginSuccess, onNavigateToSignUp, initialMessage }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState(initialMessage || '');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {

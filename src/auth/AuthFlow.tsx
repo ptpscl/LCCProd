@@ -14,6 +14,7 @@ interface AuthFlowProps {
 export default function AuthFlow({ onAuthenticated }: AuthFlowProps) {
   const [step, setStep] = useState<AuthStep>('login');
   const [registeredEmail, setRegisteredEmail] = useState('');
+  const [loginMessage, setLoginMessage] = useState('');
   
   // Try to load current user on mount (if persisted)
   useEffect(() => {
@@ -34,12 +35,18 @@ export default function AuthFlow({ onAuthenticated }: AuthFlowProps) {
     setStep('check-email');
   };
 
+  const handleVerificationSuccess = () => {
+    setLoginMessage('Email verified successfully! You can now sign in.');
+    setStep('login');
+  };
+
   return (
     <div className="min-h-screen bg-surface-bg flex items-center justify-center p-4">
       {step === 'login' && (
         <Login 
           onLoginSuccess={handleLoginSuccess}
-          onNavigateToSignUp={() => setStep('signup')}
+          onNavigateToSignUp={() => { setStep('signup'); setLoginMessage(''); }}
+          initialMessage={loginMessage}
         />
       )}
       
@@ -53,6 +60,7 @@ export default function AuthFlow({ onAuthenticated }: AuthFlowProps) {
       {step === 'check-email' && (
         <CheckEmail 
           email={registeredEmail}
+          onVerificationSuccess={handleVerificationSuccess}
           onNavigateToLogin={() => setStep('login')}
         />
       )}

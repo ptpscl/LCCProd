@@ -98,6 +98,12 @@ export const authService = {
     try {
       if (!password) throw new Error("Password is required for real sign up.");
 
+      // Check if user already exists first to give an explicit error
+      const { data: existingUser } = await supabase.from('users').select('id').eq('email', trimmedEmail).maybeSingle();
+      if (existingUser) {
+        throw new Error('An account with this email already exists.');
+      }
+
       // 1. Sign up with Supabase Auth (This is what actually sends the verification email)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: trimmedEmail,

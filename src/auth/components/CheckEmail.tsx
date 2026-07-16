@@ -5,9 +5,10 @@ import { useState, FormEvent } from 'react';
 interface CheckEmailProps {
   email: string;
   onNavigateToLogin: () => void;
+  onVerificationSuccess: () => void;
 }
 
-export default function CheckEmail({ email, onNavigateToLogin }: CheckEmailProps) {
+export default function CheckEmail({ email, onNavigateToLogin, onVerificationSuccess }: CheckEmailProps) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
@@ -22,7 +23,7 @@ export default function CheckEmail({ email, onNavigateToLogin }: CheckEmailProps
     setIsVerifying(true);
     try {
       await authService.verifyOtp(email, otp.trim());
-      onNavigateToLogin();
+      onVerificationSuccess();
     } catch (err: any) {
       setError(err.message || 'Verification failed. Please check the code and try again.');
     } finally {
@@ -39,7 +40,7 @@ export default function CheckEmail({ email, onNavigateToLogin }: CheckEmailProps
       <h2 className="text-[22px] font-semibold text-text-main mb-2">Check your email</h2>
       
       <p className="text-[14px] text-text-muted mb-8 leading-relaxed">
-        We've sent a 6-digit verification code to <span className="font-medium text-text-main">{email}</span>. Enter it below to activate your account.
+        We've sent an 8-digit verification code to <span className="font-medium text-text-main">{email}</span>. Enter it below to activate your account.
       </p>
 
       <form onSubmit={handleVerifyOtp} className="w-full flex flex-col space-y-4 mb-4">
@@ -55,8 +56,8 @@ export default function CheckEmail({ email, onNavigateToLogin }: CheckEmailProps
             value={otp}
             onChange={(e) => { setOtp(e.target.value); setError(''); }}
             className={`w-full px-4 py-2.5 bg-surface-bg border ${error ? 'border-error/60 focus:border-error focus:ring-error/20' : 'border-border-subtle focus:border-brand-600 focus:ring-brand-600/20'} rounded-[8px] text-[14px] text-text-main focus:outline-none focus:ring-2 transition-colors text-center tracking-widest font-mono text-lg`}
-            placeholder="000000"
-            maxLength={6}
+            placeholder="00000000"
+            maxLength={8}
             required
           />
         </div>
