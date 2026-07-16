@@ -63,14 +63,18 @@ const notifyListeners = () => {
   listeners.forEach(l => l(currentUser));
 };
 
+let isVerifyingOtp = false;
+
 // Listen for magic link redirects or auth state changes
 supabase.auth.onAuthStateChange(async (event, session) => {
+  if (isVerifyingOtp) return;
   if (event === 'SIGNED_IN' && session?.user?.email) {
     const { data } = await supabase.from('users').select('*').eq('email', session.user.email).maybeSingle();
     if (data) {
        if (data.status === 'pending') {
-         await supabase.from('users').update({ status: 'active' }).eq('id', session.user.id);
-         data.status = 'active';
+         // User bypassed email verification somehow (e.g., Supabase email confirms disabled)
+         await supabase.auth.signOut();
+         return;
        }
        currentUser = data as UserAccount;
        notifyListeners();
@@ -196,8 +200,8 @@ export const authService = {
 
       // If Supabase let them log in, their email IS verified! 
       if (data.status === 'pending') {
-         await supabase.from('users').update({ status: 'active' }).eq('id', authData.user.id);
-         data.status = 'active';
+         await supabase.auth.signOut();
+         throw new Error('Please verify your email address before signing in.');
       }
 
       currentUser = data as UserAccount;
@@ -221,28 +225,38 @@ export const authService = {
   async verifyOtp(email: string, token: string): Promise<void> {
     const trimmedEmail = email.trim().toLowerCase();
     
-    // Verify OTP using Supabase Auth
-    const { error: authError } = await supabase.auth.verifyOtp({
-      email: trimmedEmail,
-      token,
-      type: 'signup',
-    });
-
-    if (authError) {
-      throw new Error(`Verification failed: ${authError.message}`);
-    }
-
-    // After auth success, mark the user as active in our public table
+    isVerifyingOtp = true;
     try {
-      await supabase.from('users').update({ status: 'active' }).eq('email', trimmedEmail);
-    } catch (err) {
-      // Ignore if it fails here; they'll get fixed on login anyway
-    }
+      // Verify OTP using Supabase Auth
+      const { error: authError } = await supabase.auth.verifyOtp({
+        email: trimmedEmail,
+        token,
+        type: 'signup',
+      });
 
-    // Mock fallback
-    const account = mockAccounts.find(a => a.email.toLowerCase() === trimmedEmail);
-    if (account) {
-      account.status = 'active';
+      if (authError) {
+        throw new Error(`Verification failed: ${authError.message}`);
+      }
+
+      // Automatically log them out from the session established by verifyOtp
+      // so they are forced to log in through the login page.
+      await supabase.auth.signOut();
+
+      // After auth success, mark the user as active in our public table
+      try {
+        await supabase.from('users').update({ status: 'active' }).eq('email', trimmedEmail);
+      } catch (err) {
+        // Ignore
+      }
+
+      // Mock fallback
+      const account = mockAccounts.find(a => a.email.toLowerCase() === trimmedEmail);
+      if (account) {
+        account.status = 'active';
+      }
+    } finally {
+      // Re-enable auth state changes
+      isVerifyingOtp = false;
     }
   },
 
