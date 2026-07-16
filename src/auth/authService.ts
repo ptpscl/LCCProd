@@ -66,12 +66,6 @@ const notifyListeners = () => {
 // Listen for magic link redirects or auth state changes
 supabase.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session?.user?.email) {
-    const searchParams = new URLSearchParams(window.location.search);
-    if (searchParams.get('verified') === 'true') {
-      await supabase.auth.signOut();
-      return;
-    }
-
     const { data } = await supabase.from('users').select('*').eq('email', session.user.email).maybeSingle();
     if (data) {
        if (data.status === 'pending') {
@@ -108,9 +102,6 @@ export const authService = {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: trimmedEmail,
         password: password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/?verified=true`
-        }
       });
 
       if (authError) {
@@ -221,6 +212,34 @@ export const authService = {
     }
   },
 
+  async verifyOtp(email: string, token: string): Promise<void> {
+    const trimmedEmail = email.trim().toLowerCase();
+    
+    // Verify OTP using Supabase Auth
+    const { error: authError } = await supabase.auth.verifyOtp({
+      email: trimmedEmail,
+      token,
+      type: 'signup',
+    });
+
+    if (authError) {
+      throw new Error(`Verification failed: ${authError.message}`);
+    }
+
+    // After auth success, mark the user as active in our public table
+    try {
+      await supabase.from('users').update({ status: 'active' }).eq('email', trimmedEmail);
+    } catch (err) {
+      // Ignore if it fails here; they'll get fixed on login anyway
+    }
+
+    // Mock fallback
+    const account = mockAccounts.find(a => a.email.toLowerCase() === trimmedEmail);
+    if (account) {
+      account.status = 'active';
+    }
+  },
+
   async verifyEmail(email: string): Promise<void> {
     const trimmedEmail = email.trim().toLowerCase();
     try {
@@ -235,12 +254,6 @@ export const authService = {
   },
 
   async getCurrentUser(): Promise<UserAccount | null> {
-    const searchParams = new URLSearchParams(window.location.search);
-    if (searchParams.get('verified') === 'true') {
-      await supabase.auth.signOut();
-      return null;
-    }
-
     if (currentUser) return currentUser;
 
     // Check if there is an active session (e.g. from page reload or magic link redirect)
