@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import Login from './components/Login';
 import CreateAccount from './components/CreateAccount';
 import CheckEmail from './components/CheckEmail';
+import VerificationSuccess from './components/VerificationSuccess';
 import { authService } from './authService';
 import { UserAccount } from './types';
 
-type AuthStep = 'login' | 'signup' | 'check-email';
+type AuthStep = 'login' | 'signup' | 'check-email' | 'verification-success';
 
 interface AuthFlowProps {
   onAuthenticated: (user: UserAccount) => void;
@@ -36,6 +37,10 @@ export default function AuthFlow({ onAuthenticated }: AuthFlowProps) {
   };
 
   const handleVerificationSuccess = () => {
+    setStep('verification-success');
+  };
+
+  const handleProceedToLogin = () => {
     setLoginMessage('Email verified successfully! You can now sign in.');
     setStep('login');
   };
@@ -62,6 +67,12 @@ export default function AuthFlow({ onAuthenticated }: AuthFlowProps) {
           email={registeredEmail}
           onVerificationSuccess={handleVerificationSuccess}
           onNavigateToLogin={() => setStep('login')}
+        />
+      )}
+
+      {step === 'verification-success' && (
+        <VerificationSuccess 
+          onProceed={handleProceedToLogin}
         />
       )}
     </div>

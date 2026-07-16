@@ -238,16 +238,16 @@ export const authService = {
         throw new Error(`Verification failed: ${authError.message}`);
       }
 
-      // Automatically log them out from the session established by verifyOtp
-      // so they are forced to log in through the login page.
-      await supabase.auth.signOut();
-
       // After auth success, mark the user as active in our public table
       try {
         await supabase.from('users').update({ status: 'active' }).eq('email', trimmedEmail);
       } catch (err) {
         // Ignore
       }
+
+      // Automatically log them out from the session established by verifyOtp
+      // so they are forced to log in through the login page.
+      await supabase.auth.signOut();
 
       // Mock fallback
       const account = mockAccounts.find(a => a.email.toLowerCase() === trimmedEmail);
@@ -283,8 +283,8 @@ export const authService = {
         const { data } = await supabase.from('users').select('*').eq('email', session.user.email).maybeSingle();
         if (data) {
            if (data.status === 'pending') {
-             await supabase.from('users').update({ status: 'active' }).eq('id', session.user.id);
-             data.status = 'active';
+             await supabase.auth.signOut();
+             return null;
            }
            currentUser = data as UserAccount;
            notifyListeners();
