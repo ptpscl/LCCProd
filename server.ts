@@ -3,20 +3,16 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 
 // Import decoupled dataset-specific routes
-import customerBronze from "./backend/api/bronze/customer.js";
 import customerSilver from "./backend/api/silver/customer.js";
 import customerGold from "./backend/api/gold/customer.js";
-
-import loyaltyBronze from "./backend/api/bronze/loyalty.js";
-import mmsBronze from "./backend/api/bronze/mms.js";
-import skuBronze from "./backend/api/bronze/sku.js";
 
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
   // Middleware for parsing JSON requests
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // ==========================================
   // BACKEND API ROUTES
@@ -24,14 +20,8 @@ async function startServer() {
   
   // Mount Customer Dataset Routes
   // This ensures Leonard's routes are fully isolated to /api/.../customer
-  app.use("/api/bronze/customer", customerBronze);
   app.use("/api/silver/customer", customerSilver);
   app.use("/api/gold/customer", customerGold);
-
-  // Mount other datasets Bronze APIs
-  app.use("/api/bronze/loyalty", loyaltyBronze);
-  app.use("/api/bronze/mms", mmsBronze);
-  app.use("/api/bronze/sku", skuBronze);
 
   // Health check
   app.get("/api/health", (req, res) => {

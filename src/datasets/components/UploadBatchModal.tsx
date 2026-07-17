@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Upload, X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useAccess } from '../../governance/useAccess';
 import { DATASETS } from '../../config/datasets';
+import { supabase } from '../../auth/authService';
 
 interface UploadBatchModalProps {
   isOpen: boolean;
@@ -12,6 +13,9 @@ interface UploadBatchModalProps {
 export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadBatchModalProps) {
   const { currentUser } = useAccess();
   
+  const [storeCode, setStoreCode] = useState('');
+  const [month, setMonth] = useState('');
+
   // Array of selected files and their assigned dataset
   const [files, setFiles] = useState<{ file: File; datasetId: string; status: 'pending' | 'uploading' | 'success' | 'error'; message?: string }[]>([]);
   
@@ -46,12 +50,19 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
 
   const handleUpload = async () => {
     if (files.length === 0 || !currentUser) return;
+    if (!storeCode || !month) {
+      setError('Store Code and Month are required.');
+      return;
+    }
     
     setIsUploading(true);
     setError('');
     setSuccess('');
     
     let allSuccess = true;
+    
+    // Extract year from month ("YYYY-MM")
+    const year = month.split('-')[0];
 
     for (let i = 0; i < files.length; i++) {
       const current = files[i];
@@ -64,33 +75,35 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
       });
 
       try {
-        // Prepare dummy payload for now until we fully wire FormData
-        const datasetMap: Record<string, string> = {
-          'customer-database': 'customer',
-          'loyalty-sales': 'loyalty',
-          'mms-sales': 'mms',
-          'sku-hierarchy': 'sku'
-        };
-        const endpointKey = datasetMap[current.datasetId];
+        const fileName = current.file.name;
+        const path = `${storeCode}/${year}/${month}/${fileName}`;
         
-        const response = await fetch(`/api/bronze/${endpointKey}/upload`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            data: [{ mock: "placeholder data", filename: current.file.name }] 
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error('Upload failed');
+        const { error: uploadError } = await supabase.storage.from('bronze-raw').upload(path, current.file, { upsert: true });
+        
+        if (uploadError) {
+          throw new Error(`Storage upload failed: ${uploadError.message}`);
         }
 
-        const result = await response.json();
+        const { error: insertError } = await supabase.from('batches').insert({
+          store_code: storeCode,
+          month,
+          file_name: fileName,
+          file_path: path,
+          uploaded_by: currentUser.name,
+          status: 'uploaded',
+          row_count: null
+        });
+
+        if (insertError) {
+          throw new Error(`Database insert failed: ${insertError.message}`);
+        }
+
+        // TODO: Validation, Parquet conversion, and the DuckDB stitch will be handled later by a SEPARATE backend service that reads this file from Supabase Storage — NOT here, NOT on Vercel.
 
         setFiles(prev => {
           const copy = [...prev];
           copy[i].status = 'success';
-          copy[i].message = result.message || 'Success';
+          copy[i].message = 'Success';
           return copy;
         });
 
@@ -107,7 +120,7 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
     
     setIsUploading(false);
     if (allSuccess) {
-      setSuccess('All files successfully uploaded and validated.');
+      setSuccess('All files successfully uploaded.');
       setTimeout(() => onSuccess(), 2000);
     } else {
       setError('Some files failed to upload.');
@@ -126,16 +139,39 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
         
         <div className="p-6 overflow-y-auto space-y-5">
           {!isUploading && !success && (
-            <div>
-              <label className="block text-[13px] font-medium text-text-main mb-1.5">Choose CSV Files</label>
-              <input
-                type="file"
-                accept=".csv"
-                multiple
-                onChange={handleFileChange}
-                className="w-full text-[13px] text-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-[8px] file:border-0 file:text-[13px] file:font-semibold file:bg-surface-bg file:text-text-main hover:file:bg-border-subtle file:cursor-pointer"
-              />
-              <p className="mt-2 text-[12px] text-text-muted">Select multiple files at once. Only CSV allowed.</p>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[13px] font-medium text-text-main mb-1.5">Store Code</label>
+                  <input
+                    type="text"
+                    value={storeCode}
+                    onChange={(e) => setStoreCode(e.target.value)}
+                    placeholder="e.g. S001"
+                    className="w-full h-9 px-3 bg-white border border-border-subtle rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-text-main mb-1.5">Month</label>
+                  <input
+                    type="month"
+                    value={month}
+                    onChange={(e) => setMonth(e.target.value)}
+                    className="w-full h-9 px-3 bg-white border border-border-subtle rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[13px] font-medium text-text-main mb-1.5">Choose CSV Files</label>
+                <input
+                  type="file"
+                  accept=".csv"
+                  multiple
+                  onChange={handleFileChange}
+                  className="w-full text-[13px] text-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-[8px] file:border-0 file:text-[13px] file:font-semibold file:bg-surface-bg file:text-text-main hover:file:bg-border-subtle file:cursor-pointer"
+                />
+                <p className="mt-2 text-[12px] text-text-muted">Select multiple files at once. Only CSV allowed.</p>
+              </div>
             </div>
           )}
 
@@ -181,7 +217,7 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
               className="w-full flex items-center justify-center h-10 bg-brand-600 text-white rounded-[8px] text-[13px] font-semibold hover:bg-brand-700 transition-colors cursor-pointer mt-4"
             >
               <Upload className="w-4 h-4 mr-2" />
-              Upload and Validate
+              Upload directly to Data Lake
             </button>
           )}
 
