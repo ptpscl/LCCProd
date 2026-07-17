@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 // This will use the DATABASE_URL environment variable from Supabase
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false } // Required for Supabase connections
 });
