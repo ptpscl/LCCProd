@@ -57,6 +57,14 @@ export default function App() {
     return null;
   };
 
+  const getActiveDatasetId = () => {
+    if (currentView.includes('/')) {
+      const parts = currentView.split('/');
+      return parts[1]; // datasetId is the second part
+    }
+    return undefined;
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-white font-sans text-text-main selection:bg-brand-50 selection:text-brand-600">
       <Sidebar currentView={currentView} onViewChange={setCurrentView} />
@@ -71,7 +79,8 @@ export default function App() {
       <UploadBatchModal 
         isOpen={isUploadModalOpen} 
         onClose={() => setIsUploadModalOpen(false)} 
-        onSuccess={handleUploadSuccess} 
+        onSuccess={handleUploadSuccess}
+        activeDatasetId={getActiveDatasetId()}
       />
     </div>
   );

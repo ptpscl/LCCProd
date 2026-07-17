@@ -9,9 +9,10 @@ interface UploadBatchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  activeDatasetId?: string;
 }
 
-export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadBatchModalProps) {
+export default function UploadBatchModal({ isOpen, onClose, onSuccess, activeDatasetId }: UploadBatchModalProps) {
   const { currentUser } = useAccess();
   
   // Array of selected files and their assigned dataset
@@ -27,7 +28,7 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
     if (e.target.files) {
       const newFiles = Array.from(e.target.files).map(file => ({
         file,
-        datasetId: DATASETS[0].id, // Default to first
+        datasetId: activeDatasetId || DATASETS[0].id,
         status: 'pending' as const
       }));
       setFiles(prev => [...prev, ...newFiles]);
