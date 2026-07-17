@@ -1,5 +1,6 @@
 import sys
 import json
+import csv
 from datetime import datetime
 
 # ==========================================
@@ -7,7 +8,7 @@ from datetime import datetime
 # PURPOSE: BRONZE SCHEMA & DATA TYPE CHECK
 # ==========================================
 
-EXPECTED_COLUMNS = {
+EXPECTED_COLUMNS = [
     "DATE", 
     "TRANSACTION NUMBER", 
     "REGISTER NUMBER", 
@@ -17,10 +18,10 @@ EXPECTED_COLUMNS = {
     "SKU CODE", 
     "LOYALTY SALES", 
     "QTY SOLD"
-}
+]
 
 def validate_schema(row):
-    missing_cols = EXPECTED_COLUMNS - set(row.keys())
+    missing_cols = set(EXPECTED_COLUMNS) - set(row.keys())
     if missing_cols:
         return f"Missing columns: {', '.join(missing_cols)}"
         
@@ -42,12 +43,36 @@ def validate_schema(row):
         
     return None
 
-def process_dataset(data):
+def process_file(file_path):
     invalid_rows = []
-    for row in data:
-        error = validate_schema(row)
-        if error:
-            invalid_rows.append({"row": row, "error": error})
+    processed_count = 0
+    clean_file_path = file_path + '.clean.csv'
+    
+    with open(file_path, 'r', encoding='utf-8') as infile:
+        # Check first line for tab vs comma
+        first_line = infile.readline()
+        delimiter = '\t' if '\t' in first_line else ','
+        infile.seek(0)
+        
+        reader = csv.DictReader(infile, delimiter=delimiter)
+        
+        with open(clean_file_path, 'w', encoding='utf-8', newline='') as outfile:
+            writer = csv.DictWriter(outfile, fieldnames=EXPECTED_COLUMNS, extrasaction='ignore')
+            writer.writeheader()
+            
+            for row in reader:
+                # Strip spaces from keys
+                clean_row = {k.strip() if isinstance(k, str) else k: v.strip() if isinstance(v, str) else v for k, v in row.items()}
+                error = validate_schema(clean_row)
+                if error:
+                    if len(invalid_rows) < 5:
+                        invalid_rows.append({"row": clean_row, "error": error})
+                    if len(invalid_rows) > 50: # Fail fast
+                        break
+                else:
+                    # Clean up dates to full format if needed, but for now just pass through
+                    writer.writerow(clean_row)
+                    processed_count += 1
             
     if invalid_rows:
         print(json.dumps({
@@ -59,16 +84,16 @@ def process_dataset(data):
         print(json.dumps({
             "status": "success",
             "message": "Schema valid. Ready for Bronze upload.",
-            "processed": len(data)
+            "processed": processed_count,
+            "clean_file": clean_file_path
         }))
 
 if __name__ == "__main__":
     try:
-        raw_input = sys.stdin.read()
-        if raw_input:
-            raw_data = json.loads(raw_input)
-            process_dataset(raw_data)
+        if len(sys.argv) > 1:
+            file_path = sys.argv[1]
+            process_file(file_path)
         else:
-            print(json.dumps({"status": "error", "message": "No data provided"}))
+            print(json.dumps({"status": "error", "message": "No file path provided"}))
     except Exception as e:
         print(json.dumps({"status": "error", "message": str(e)}))

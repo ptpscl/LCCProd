@@ -64,22 +64,6 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
       });
 
       try {
-        const text = await current.file.text();
-        const rows = text.split('\n').map(r => r.trim()).filter(r => r);
-        
-        // Detect separator (tab or comma)
-        const separator = rows[0].includes('\t') ? '\t' : ',';
-        const headers = rows[0].split(separator).map(h => h.trim());
-        
-        const data = rows.slice(1).map(rowStr => {
-          const values = rowStr.split(separator).map(v => v.trim());
-          const obj: any = {};
-          headers.forEach((h, idx) => {
-            obj[h] = values[idx] || '';
-          });
-          return obj;
-        });
-
         const datasetMap: Record<string, string> = {
           'customer-database': 'customer',
           'loyalty-sales': 'loyalty',
@@ -88,19 +72,26 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
         };
         const endpointKey = datasetMap[current.datasetId];
         
+        // For massive datasets, we must stream the file directly to the backend
+        // instead of parsing it in the browser's memory.
+        const formData = new FormData();
+        formData.append('file', current.file);
+
         const response = await fetch(`/api/bronze/${endpointKey}/upload`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            data: data
-          })
+          body: formData
         });
 
         let result;
         try {
-          result = await response.json();
-        } catch (e) {
-          throw new Error('Upload failed: Invalid server response');
+          const text = await response.text();
+          try {
+            result = JSON.parse(text);
+          } catch (e) {
+            throw new Error(`Upload failed. Server returned: ${text.substring(0, 100)}...`);
+          }
+        } catch (e: any) {
+          throw new Error(e.message || 'Upload failed: Invalid server response');
         }
 
         if (!response.ok) {

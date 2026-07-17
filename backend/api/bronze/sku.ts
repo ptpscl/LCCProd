@@ -1,14 +1,15 @@
 import { Router } from 'express';
+import multer from 'multer';
 
 const router = Router();
+const upload = multer({ dest: 'tmp/' });
 
 // ==========================================
 // DATASET: SKU HIERARCHY (BRONZE LAYER)
 // ==========================================
 
-router.post('/upload', async (req, res) => {
+router.post('/upload', upload.single('file'), async (req, res) => {
   try {
-    const { data } = req.body;
     // Placeholder for teammate to add validation logic
     res.json({
       success: true,

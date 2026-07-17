@@ -2,22 +2,24 @@ import { Router } from 'express';
 import { spawn } from 'child_process';
 import { initializeLoyaltyTables, pool } from '../../db/init.js';
 import path from 'path';
+import multer from 'multer';
+import fs from 'fs';
+import { from as copyFrom } from 'pg-copy-streams';
 
 const router = Router();
+const upload = multer({ dest: 'tmp/' });
 
 // ==========================================
 // DATASET: LOYALTY SALES (BRONZE LAYER)
 // ==========================================
 
-router.post('/upload', async (req, res) => {
+router.post('/upload', upload.single('file'), async (req, res) => {
   try {
     // 1. Automatically create tables if they don't exist!
     await initializeLoyaltyTables();
 
-    const { data } = req.body;
-    
-    if (!data || !Array.isArray(data)) {
-      return res.status(400).json({ error: "Invalid data format. Expected an array of records." });
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded." });
     }
 
     if (!process.env.DATABASE_URL) {
@@ -26,11 +28,7 @@ router.post('/upload', async (req, res) => {
 
     // 2. Spawn python process for schema validation
     const pythonScript = path.join(process.cwd(), 'backend', 'python', 'loyalty', 'bronze_schema.py');
-    const pythonProcess = spawn('python3', [pythonScript]);
-    
-    // Write data to stdin to avoid E2BIG argument limits
-    pythonProcess.stdin.write(JSON.stringify(data));
-    pythonProcess.stdin.end();
+    const pythonProcess = spawn('python3', [pythonScript, req.file.path]);
     
     let pythonOut = '';
     let pythonErr = '';
@@ -44,6 +42,9 @@ router.post('/upload', async (req, res) => {
     });
 
     pythonProcess.on('close', async (code) => {
+      // Clean up the original uploaded file
+      fs.unlink(req.file!.path, () => {});
+
       if (code !== 0) {
         console.error("Python error:", pythonErr);
         return res.status(500).json({ error: "Validation script failed.", details: pythonErr });
@@ -60,46 +61,55 @@ router.post('/upload', async (req, res) => {
           });
         }
 
-        // 3. Insert into Supabase (bronze_loyalty_sales table)
+        const cleanFilePath = result.clean_file;
+        if (!cleanFilePath || !fs.existsSync(cleanFilePath)) {
+           return res.status(500).json({ error: "Validation script did not produce a clean file." });
+        }
+
+        // 3. Insert into Supabase (bronze_loyalty_sales table) using fast copy-stream
         const client = await pool.connect();
         try {
-          await client.query('BEGIN');
+          const stream = client.query(copyFrom(`
+            COPY bronze_loyalty_sales (
+              "DATE", "TRANSACTION NUMBER", "REGISTER NUMBER", "STORE CODE", 
+              "STORE CATEGORIZATION", "CUSTOMER NUMBER", "SKU CODE", 
+              "LOYALTY SALES", "QTY SOLD"
+            ) FROM STDIN WITH (FORMAT csv, HEADER true)
+          `));
           
-          for (const row of data) {
-            await client.query(`
-              INSERT INTO bronze_loyalty_sales (
-                "DATE", "TRANSACTION NUMBER", "REGISTER NUMBER", "STORE CODE", 
-                "STORE CATEGORIZATION", "CUSTOMER NUMBER", "SKU CODE", 
-                "LOYALTY SALES", "QTY SOLD"
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            `, [
-              row["DATE"] || null,
-              row["TRANSACTION NUMBER"] || null,
-              row["REGISTER NUMBER"] || null,
-              row["STORE CODE"] || null,
-              row["STORE CATEGORIZATION"] || null,
-              row["CUSTOMER NUMBER"] || null,
-              row["SKU CODE"] || null,
-              row["LOYALTY SALES"] || null,
-              row["QTY SOLD"] || null
-            ]);
-          }
+          const fileStream = fs.createReadStream(cleanFilePath);
           
-          await client.query('COMMIT');
-          
-          res.json({
-            success: true,
-            layer: 'bronze',
-            dataset: 'loyalty-sales',
-            message: 'Loyalty sales data validated and uploaded to Bronze layer.',
-            processed: result.processed
+          fileStream.on('error', (error) => {
+            console.error("File stream error:", error);
+            res.status(500).json({ error: "Failed to read clean file." });
+            client.release();
           });
+          
+          stream.on('error', (error) => {
+            console.error("Database COPY error:", error);
+            res.status(500).json({ error: "Database bulk insert failed.", details: error.message });
+            client.release();
+          });
+          
+          stream.on('finish', () => {
+            res.json({
+              success: true,
+              layer: 'bronze',
+              dataset: 'loyalty-sales',
+              message: 'Loyalty sales data validated and uploaded to Bronze layer using fast streaming.',
+              processed: result.processed
+            });
+            client.release();
+            fs.unlink(cleanFilePath, () => {}); // clean up processed file
+          });
+          
+          fileStream.pipe(stream);
+          
         } catch (dbError: any) {
-          await client.query('ROLLBACK');
           console.error("Database insert error:", dbError);
           res.status(500).json({ error: "Failed to insert into database.", details: dbError.message });
-        } finally {
           client.release();
+          fs.unlink(cleanFilePath, () => {}); // clean up processed file
         }
 
       } catch (parseError: any) {

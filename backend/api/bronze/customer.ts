@@ -1,16 +1,16 @@
 import { Router } from 'express';
-// import { spawn } from 'child_process';
+import multer from 'multer';
 
 const router = Router();
+const upload = multer({ dest: 'tmp/' });
 
 // ==========================================
 // DATASET: CUSTOMER DATABASE (BRONZE LAYER)
 // OWNER: LEONARD
 // ==========================================
 
-router.post('/upload', async (req, res) => {
+router.post('/upload', upload.single('file'), async (req, res) => {
   try {
-    const { data } = req.body;
     
     // TODO (Leonard): 
     // 1. Receive raw upload from Frontend
