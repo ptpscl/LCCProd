@@ -75,26 +75,12 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
           throw new Error(`Storage upload failed: ${uploadError.message}`);
         }
 
-        // Only insert metadata into Postgres; file data stays in Storage
-        const tableName = current.datasetId === 'loyalty-sales' ? 'loyalty_batches' : 'batches';
-        const { error: insertError } = await supabase.from(tableName).insert({
-          file_name: fileName,
-          file_path: path,
-          uploaded_by: currentUser.name,
-          status: 'uploaded',
-          row_count: null
-        });
-
-        if (insertError) {
-          throw new Error(`Database insert failed: ${insertError.message}`);
-        }
-
         // TODO: Validation, Parquet conversion, and the DuckDB stitch will be handled later by a SEPARATE backend service that reads this file from Supabase Storage — NOT here, NOT on Vercel.
 
         setFiles(prev => {
           const copy = [...prev];
           copy[i].status = 'success';
-          copy[i].message = 'Success';
+          copy[i].message = `Uploaded to Data Lake: ${path}`;
           return copy;
         });
 

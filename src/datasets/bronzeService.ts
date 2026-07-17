@@ -11,18 +11,8 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
   -- 1. Create the bucket
   insert into storage.buckets (id, name, public) values ('bronze-raw', 'bronze-raw', false);
 
-  -- 2. Create the table
-  create table batches (
-    id uuid primary key default gen_random_uuid(),
-    store_code text not null,
-    month text not null,
-    file_name text not null,
-    file_path text not null,
-    row_count int,
-    status text not null,
-    uploaded_by text not null,
-    created_at timestamptz default now()
-  );
+  Files are the Bronze records and use this partition layout:
+  <store_code>/<year>/<YYYY-MM>/<file_name>
 */
 
 export interface BronzeBatch {
@@ -69,35 +59,62 @@ export const bronzeService = {
     await new Promise(resolve => setTimeout(resolve, 1000));
     // TODO backend: incremental upsert on the 5-key
 
-    // 5. "Registering batch…" -> REAL: insert a row into the "batches" table
-    onProgress('Registering batch...');
-    const { data: insertData, error: insertError } = await supabase.from('batches').insert({
+    // The uploaded object itself is the Bronze batch record.
+    onProgress('Upload complete');
+    return {
+      id: path,
       store_code: storeCode,
       month,
       file_name: file.name,
       file_path: path,
-      row_count: null, // Could parse client-side, but leaving null for now as per instructions (can sum later)
+      row_count: null,
       status: 'Success',
-      uploaded_by: uploadedBy
-    }).select().single();
-
-    if (insertError) {
-      throw new Error(`Failed to register batch: ${insertError.message}`);
-    }
-
-    return insertData as BronzeBatch;
+      uploaded_by: uploadedBy,
+      created_at: new Date().toISOString(),
+    } satisfies BronzeBatch;
   },
 
   async listBatches({ storeCode }: { storeCode?: string } = {}): Promise<BronzeBatch[]> {
-    let query = supabase.from('batches').select('*').order('created_at', { ascending: false });
-    if (storeCode) {
-      query = query.eq('store_code', storeCode);
-    }
-    const { data, error } = await query;
-    if (error) {
-      console.error("Error fetching batches:", error);
-      return [];
-    }
-    return data as BronzeBatch[];
+    const bucket = supabase.storage.from('bronze-raw');
+    const batches: BronzeBatch[] = [];
+
+    const walk = async (prefix: string): Promise<void> => {
+      const { data, error } = await bucket.list(prefix, {
+        limit: 1000,
+        sortBy: { column: 'name', order: 'asc' },
+      });
+      if (error) throw new Error(`Failed to list Data Lake files: ${error.message}`);
+
+      for (const object of data ?? []) {
+        const objectPath = prefix ? `${prefix}/${object.name}` : object.name;
+        if (!object.id) {
+          await walk(objectPath);
+          continue;
+        }
+
+        const parts = objectPath.split('/');
+        const objectStore = parts[0];
+        const usesPartitionedPath = parts.length >= 4;
+        const objectMonth = usesPartitionedPath ? parts[2] : '';
+        const fileParts = usesPartitionedPath ? parts.slice(3) : parts.slice(1);
+        if (!objectStore || fileParts.length === 0) continue;
+        if (storeCode && objectStore !== storeCode) continue;
+
+        batches.push({
+          id: object.id,
+          store_code: objectStore,
+          month: objectMonth,
+          file_name: fileParts.join('/'),
+          file_path: objectPath,
+          row_count: null,
+          status: 'Success',
+          uploaded_by: 'Data Lake',
+          created_at: object.created_at ?? object.updated_at ?? '',
+        });
+      }
+    };
+
+    await walk(storeCode ?? '');
+    return batches.sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
 };
