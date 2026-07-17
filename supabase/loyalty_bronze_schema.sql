@@ -3,8 +3,8 @@
 -- OWNER: LOYALTY SALES TEAM
 -- ==========================================
 
--- This table holds the validated data from the Bronze layer
--- along with flags for whether the record is 'clean' or 'unresolved'
+-- This table holds the raw, schema-validated data from the Bronze layer.
+-- Anomaly detection and cleaning will happen in the Silver layer.
 
 CREATE TABLE IF NOT EXISTS bronze_loyalty_sales (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -19,10 +19,6 @@ CREATE TABLE IF NOT EXISTS bronze_loyalty_sales (
     "SKU CODE" VARCHAR(255),
     "LOYALTY SALES" NUMERIC,
     "QTY SOLD" NUMERIC,
-    
-    -- Medallion architecture tracking metadata
-    validation_status VARCHAR(50) DEFAULT 'unresolved', -- 'unresolved', 'clean', or 'resolved'
-    anomaly_reason TEXT, -- Populated if status is 'unresolved'
     
     -- Standard audit fields
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
@@ -44,5 +40,5 @@ FOR SELECT TO authenticated USING (true);
 -- to upload data, which automatically bypasses RLS. If your frontend uploads 
 -- directly to Supabase, you would also need an INSERT policy here.
 
--- Note: In Silver layer development, records with status 'clean' or 'resolved' 
--- are considered safe to move to the Silver layer or downstream aggregations.
+-- Note: In Silver layer development, records will be pulled from this Bronze table,
+-- processed for business anomalies, and then stored in a Silver table.
