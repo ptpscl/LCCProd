@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 
 // Import decoupled dataset-specific routes
@@ -8,8 +7,9 @@ import customerBronze from "./backend/api/bronze/customer.js";
 import customerSilver from "./backend/api/silver/customer.js";
 import customerGold from "./backend/api/gold/customer.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import loyaltyBronze from "./backend/api/bronze/loyalty.js";
+import mmsBronze from "./backend/api/bronze/mms.js";
+import skuBronze from "./backend/api/bronze/sku.js";
 
 async function startServer() {
   const app = express();
@@ -27,6 +27,11 @@ async function startServer() {
   app.use("/api/bronze/customer", customerBronze);
   app.use("/api/silver/customer", customerSilver);
   app.use("/api/gold/customer", customerGold);
+
+  // Mount other datasets Bronze APIs
+  app.use("/api/bronze/loyalty", loyaltyBronze);
+  app.use("/api/bronze/mms", mmsBronze);
+  app.use("/api/bronze/sku", skuBronze);
 
   // Health check
   app.get("/api/health", (req, res) => {

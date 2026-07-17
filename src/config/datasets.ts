@@ -1,7 +1,7 @@
 export const DATASETS = [
   { id: 'customer-database', label: 'Customer database' },
   { id: 'loyalty-sales', label: 'Loyalty sales' },
-  { id: 'all-transactions', label: 'All transactions' },
+  { id: 'mms-sales', label: 'MMS sales' },
   { id: 'sku-hierarchy', label: 'SKU hierarchy' },
 ] as const;
 
