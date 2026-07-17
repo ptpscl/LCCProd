@@ -13,9 +13,6 @@ interface UploadBatchModalProps {
 export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadBatchModalProps) {
   const { currentUser } = useAccess();
   
-  const [storeCode, setStoreCode] = useState('');
-  const [month, setMonth] = useState('');
-
   // Array of selected files and their assigned dataset
   const [files, setFiles] = useState<{ file: File; datasetId: string; status: 'pending' | 'uploading' | 'success' | 'error'; message?: string }[]>([]);
   
@@ -50,10 +47,6 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
 
   const handleUpload = async () => {
     if (files.length === 0 || !currentUser) return;
-    if (!storeCode || !month) {
-      setError('Store Code and Month are required.');
-      return;
-    }
     
     setIsUploading(true);
     setError('');
@@ -61,9 +54,6 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
     
     let allSuccess = true;
     
-    // Extract year from month ("YYYY-MM")
-    const year = month.split('-')[0];
-
     for (let i = 0; i < files.length; i++) {
       const current = files[i];
       if (current.status === 'success') continue;
@@ -76,7 +66,8 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
 
       try {
         const fileName = current.file.name;
-        const path = `${storeCode}/${year}/${month}/${fileName}`;
+        const timestamp = new Date().getTime();
+        const path = `${current.datasetId}/${timestamp}_${fileName}`;
         
         const { error: uploadError } = await supabase.storage.from('bronze-raw').upload(path, current.file, { upsert: true });
         
@@ -85,8 +76,8 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
         }
 
         const { error: insertError } = await supabase.from('batches').insert({
-          store_code: storeCode,
-          month,
+          store_code: null,
+          month: null,
           file_name: fileName,
           file_path: path,
           uploaded_by: currentUser.name,
@@ -140,27 +131,6 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
         <div className="p-6 overflow-y-auto space-y-5">
           {!isUploading && !success && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[13px] font-medium text-text-main mb-1.5">Store Code</label>
-                  <input
-                    type="text"
-                    value={storeCode}
-                    onChange={(e) => setStoreCode(e.target.value)}
-                    placeholder="e.g. S001"
-                    className="w-full h-9 px-3 bg-white border border-border-subtle rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-text-main mb-1.5">Month</label>
-                  <input
-                    type="month"
-                    value={month}
-                    onChange={(e) => setMonth(e.target.value)}
-                    className="w-full h-9 px-3 bg-white border border-border-subtle rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                  />
-                </div>
-              </div>
               <div>
                 <label className="block text-[13px] font-medium text-text-main mb-1.5">Choose CSV Files</label>
                 <input
