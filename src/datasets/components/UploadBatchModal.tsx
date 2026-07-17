@@ -66,10 +66,13 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
       try {
         const text = await current.file.text();
         const rows = text.split('\n').map(r => r.trim()).filter(r => r);
-        const headers = rows[0].split(',').map(h => h.trim());
+        
+        // Detect separator (tab or comma)
+        const separator = rows[0].includes('\t') ? '\t' : ',';
+        const headers = rows[0].split(separator).map(h => h.trim());
         
         const data = rows.slice(1).map(rowStr => {
-          const values = rowStr.split(',').map(v => v.trim());
+          const values = rowStr.split(separator).map(v => v.trim());
           const obj: any = {};
           headers.forEach((h, idx) => {
             obj[h] = values[idx] || '';
@@ -97,11 +100,15 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
         try {
           result = await response.json();
         } catch (e) {
-          throw new Error('Upload failed');
+          throw new Error('Upload failed: Invalid server response');
         }
 
         if (!response.ok) {
-          throw new Error(result.error || result.message || 'Upload failed');
+          let errMsg = result.error || result.message || 'Upload failed';
+          if (result.errors && result.errors.length > 0) {
+             errMsg += ' - ' + result.errors[0].error;
+          }
+          throw new Error(errMsg);
         }
 
         setFiles(prev => {
