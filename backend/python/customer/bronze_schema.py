@@ -36,8 +36,12 @@ def process_dataset(data):
         }))
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        raw_data = json.loads(sys.argv[1])
-        process_dataset(raw_data)
-    else:
-        print(json.dumps({"error": "No data provided"}))
+    try:
+        raw_input = sys.stdin.read()
+        if raw_input:
+            raw_data = json.loads(raw_input)
+            process_dataset(raw_data)
+        else:
+            print(json.dumps({"error": "No data provided"}))
+    except Exception as e:
+        print(json.dumps({"error": str(e)}))

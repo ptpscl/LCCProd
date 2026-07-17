@@ -26,7 +26,11 @@ router.post('/upload', async (req, res) => {
 
     // 2. Spawn python process for schema validation
     const pythonScript = path.join(process.cwd(), 'backend', 'python', 'loyalty', 'bronze_schema.py');
-    const pythonProcess = spawn('python3', [pythonScript, JSON.stringify(data)]);
+    const pythonProcess = spawn('python3', [pythonScript]);
+    
+    // Write data to stdin to avoid E2BIG argument limits
+    pythonProcess.stdin.write(JSON.stringify(data));
+    pythonProcess.stdin.end();
     
     let pythonOut = '';
     let pythonErr = '';

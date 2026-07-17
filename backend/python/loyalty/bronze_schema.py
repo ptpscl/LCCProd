@@ -25,8 +25,12 @@ def validate_schema(row):
         return f"Missing columns: {', '.join(missing_cols)}"
         
     try:
-        float(row.get("LOYALTY SALES", 0))
-        float(row.get("QTY SOLD", 0))
+        val1 = row.get("LOYALTY SALES", 0)
+        val2 = row.get("QTY SOLD", 0)
+        if val1 == "": val1 = 0
+        if val2 == "": val2 = 0
+        float(val1)
+        float(val2)
     except ValueError:
         return "Type error: LOYALTY SALES or QTY SOLD are not valid numbers"
         
@@ -59,8 +63,12 @@ def process_dataset(data):
         }))
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        raw_data = json.loads(sys.argv[1])
-        process_dataset(raw_data)
-    else:
-        print(json.dumps({"status": "error", "message": "No data provided"}))
+    try:
+        raw_input = sys.stdin.read()
+        if raw_input:
+            raw_data = json.loads(raw_input)
+            process_dataset(raw_data)
+        else:
+            print(json.dumps({"status": "error", "message": "No data provided"}))
+    except Exception as e:
+        print(json.dumps({"status": "error", "message": str(e)}))
