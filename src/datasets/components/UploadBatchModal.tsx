@@ -75,9 +75,9 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
           throw new Error(`Storage upload failed: ${uploadError.message}`);
         }
 
-        const { error: insertError } = await supabase.from('batches').insert({
-          store_code: null,
-          month: null,
+        // Only insert metadata into Postgres; file data stays in Storage
+        const tableName = current.datasetId === 'loyalty-sales' ? 'loyalty_batches' : 'batches';
+        const { error: insertError } = await supabase.from(tableName).insert({
           file_name: fileName,
           file_path: path,
           uploaded_by: currentUser.name,
