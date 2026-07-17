@@ -65,25 +65,97 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
       });
 
       try {
-        const fileName = current.file.name;
-        const timestamp = new Date().getTime();
-        const path = `${current.datasetId}/${timestamp}_${fileName}`;
-        
-        const { error: uploadError } = await supabase.storage.from('bronze-raw').upload(path, current.file, { upsert: true });
-        
-        if (uploadError) {
-          throw new Error(`Storage upload failed: ${uploadError.message}`);
+        if (current.datasetId === 'loyalty-sales') {
+          const fileName = current.file.name;
+          const timestamp = new Date().getTime();
+          const path = `loyalty-sales/${timestamp}_${fileName}`;
+          
+          const { error: uploadError } = await supabase.storage.from('bronze-raw').upload(path, current.file, { upsert: true });
+          
+          if (uploadError) {
+            throw new Error(`Storage upload failed: ${uploadError.message}`);
+          }
+
+          const { error: insertError } = await supabase.from('loyalty_batches').insert({
+            file_name: fileName,
+            file_path: path,
+            file_size_bytes: current.file.size,
+            uploaded_by: currentUser.email,
+            status: 'uploaded',
+            row_count: null
+          });
+
+          if (insertError) {
+            throw new Error(`Database insert failed: ${insertError.message}`);
+          }
+
+          setFiles(prev => {
+            const copy = [...prev];
+            copy[i].status = 'success';
+            copy[i].message = 'Success';
+            return copy;
+          });
+        } else {
+          const datasetMap: Record<string, string> = {
+            'customer-database': 'customer',
+            'mms-sales': 'mms',
+            'sku-hierarchy': 'sku'
+          };
+          const endpointKey = datasetMap[current.datasetId];
+          
+          // For massive datasets, we must stream the file directly to the backend
+          // by chunking it, to bypass Vercel/Cloud Run payload size limits.
+          const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
+          const totalChunks = Math.ceil(current.file.size / CHUNK_SIZE);
+          const uploadId = crypto.randomUUID();
+          let finalResult = null;
+
+          for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            const start = chunkIndex * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, current.file.size);
+            const chunk = current.file.slice(start, end);
+
+            const formData = new FormData();
+            formData.append('file', chunk, current.file.name);
+            formData.append('chunkIndex', chunkIndex.toString());
+            formData.append('totalChunks', totalChunks.toString());
+            formData.append('uploadId', uploadId);
+
+            const response = await fetch(`/api/bronze/${endpointKey}/upload`, {
+              method: 'POST',
+              body: formData
+            });
+
+            let result;
+            try {
+              const text = await response.text();
+              try {
+                result = JSON.parse(text);
+              } catch (e) {
+                throw new Error(`Upload failed. Server returned: ${text.substring(0, 100)}...`);
+              }
+            } catch (e: any) {
+              throw new Error(e.message || 'Upload failed: Invalid server response');
+            }
+
+            if (!response.ok) {
+              let errMsg = result.error || result.message || 'Upload failed';
+              if (result.errors && result.errors.length > 0) {
+                 errMsg += ' - ' + result.errors[0].error;
+              }
+              throw new Error(errMsg);
+            }
+            
+            finalResult = result;
+          }
+
+          setFiles(prev => {
+            const copy = [...prev];
+            copy[i].status = 'success';
+            copy[i].message = finalResult?.message || 'Success';
+            return copy;
+          });
         }
-
-        // TODO: Validation, Parquet conversion, and the DuckDB stitch will be handled later by a SEPARATE backend service that reads this file from Supabase Storage — NOT here, NOT on Vercel.
-
-        setFiles(prev => {
-          const copy = [...prev];
-          copy[i].status = 'success';
-          copy[i].message = `Uploaded to Data Lake: ${path}`;
-          return copy;
-        });
-
       } catch (err: any) {
         allSuccess = false;
         setFiles(prev => {
