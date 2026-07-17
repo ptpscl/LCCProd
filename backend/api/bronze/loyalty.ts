@@ -4,6 +4,7 @@ import { initializeLoyaltyTables, pool } from '../../db/init.js';
 import path from 'path';
 import multer from 'multer';
 import fs from 'fs';
+import os from 'os';
 import { from as copyFrom } from 'pg-copy-streams';
 
 const router = Router();
@@ -24,6 +25,25 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
     if (!process.env.DATABASE_URL) {
       return res.status(500).json({ error: "DATABASE_URL is not configured." });
+    }
+    
+    const { chunkIndex, totalChunks, uploadId } = req.body;
+    
+    // Chunked upload handling
+    if (chunkIndex !== undefined && totalChunks !== undefined && uploadId) {
+       const tmpDir = os.tmpdir();
+       const finalFilePath = path.join(tmpDir, `upload-${uploadId}.csv`);
+       
+       // Append chunk to the final file
+       fs.appendFileSync(finalFilePath, fs.readFileSync(req.file.path));
+       fs.unlinkSync(req.file.path); // clean up the chunk
+       
+       if (Number(chunkIndex) < Number(totalChunks) - 1) {
+          return res.json({ success: true, message: "Chunk received" });
+       }
+       
+       // If it's the last chunk, point req.file.path to the assembled file
+       req.file.path = finalFilePath;
     }
 
     // 2. Spawn python process for schema validation

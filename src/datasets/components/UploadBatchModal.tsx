@@ -73,39 +73,55 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
         const endpointKey = datasetMap[current.datasetId];
         
         // For massive datasets, we must stream the file directly to the backend
-        // instead of parsing it in the browser's memory.
-        const formData = new FormData();
-        formData.append('file', current.file);
+        // by chunking it, to bypass Vercel/Cloud Run payload size limits.
+        const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
+        const totalChunks = Math.ceil(current.file.size / CHUNK_SIZE);
+        const uploadId = crypto.randomUUID();
+        let finalResult = null;
 
-        const response = await fetch(`/api/bronze/${endpointKey}/upload`, {
-          method: 'POST',
-          body: formData
-        });
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+          const start = chunkIndex * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, current.file.size);
+          const chunk = current.file.slice(start, end);
 
-        let result;
-        try {
-          const text = await response.text();
+          const formData = new FormData();
+          formData.append('file', chunk, current.file.name);
+          formData.append('chunkIndex', chunkIndex.toString());
+          formData.append('totalChunks', totalChunks.toString());
+          formData.append('uploadId', uploadId);
+
+          const response = await fetch(`/api/bronze/${endpointKey}/upload`, {
+            method: 'POST',
+            body: formData
+          });
+
+          let result;
           try {
-            result = JSON.parse(text);
-          } catch (e) {
-            throw new Error(`Upload failed. Server returned: ${text.substring(0, 100)}...`);
+            const text = await response.text();
+            try {
+              result = JSON.parse(text);
+            } catch (e) {
+              throw new Error(`Upload failed. Server returned: ${text.substring(0, 100)}...`);
+            }
+          } catch (e: any) {
+            throw new Error(e.message || 'Upload failed: Invalid server response');
           }
-        } catch (e: any) {
-          throw new Error(e.message || 'Upload failed: Invalid server response');
-        }
 
-        if (!response.ok) {
-          let errMsg = result.error || result.message || 'Upload failed';
-          if (result.errors && result.errors.length > 0) {
-             errMsg += ' - ' + result.errors[0].error;
+          if (!response.ok) {
+            let errMsg = result.error || result.message || 'Upload failed';
+            if (result.errors && result.errors.length > 0) {
+               errMsg += ' - ' + result.errors[0].error;
+            }
+            throw new Error(errMsg);
           }
-          throw new Error(errMsg);
+          
+          finalResult = result;
         }
 
         setFiles(prev => {
           const copy = [...prev];
           copy[i].status = 'success';
-          copy[i].message = result.message || 'Success';
+          copy[i].message = finalResult?.message || 'Success';
           return copy;
         });
 
