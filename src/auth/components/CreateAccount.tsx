@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { authService, ADMIN_EMAILS } from '../authService';
 import { governanceService } from '../../governance/governanceService';
-import { eventsService } from '../../eventsService';
+import { eventsService } from '../../services/eventsService';
 
 interface CreateAccountProps {
   onAccountCreated: (email: string) => void;
@@ -60,9 +60,9 @@ export default function CreateAccount({ onAccountCreated, onNavigateToLogin }: C
       
       eventsService.logEvent({
         dataset: 'System',
-        action: 'Sign Up',
+        type: 'Sign Up',
         detail: `New account created: ${email.trim()}`,
-        user: fullName,
+        actor: fullName,
       });
 
       onAccountCreated(email.trim());

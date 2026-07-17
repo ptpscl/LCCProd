@@ -3,6 +3,7 @@ import { Upload, X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useAccess } from '../../governance/useAccess';
 import { DATASETS } from '../../config/datasets';
 import { supabase } from '../../auth/authService';
+import { eventsService } from '../../services/eventsService';
 
 interface UploadBatchModalProps {
   isOpen: boolean;
@@ -87,6 +88,18 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
 
           if (insertError) {
             throw new Error(`Database insert failed: ${insertError.message}`);
+          }
+
+          const formattedFileSize = (current.file.size / (1024 * 1024)).toFixed(2) + ' MB';
+          try {
+            await eventsService.logEvent({
+              type: 'upload',
+              dataset: 'loyalty-sales',
+              detail: `Uploaded ${fileName} (${formattedFileSize})`,
+              actor: currentUser.email
+            });
+          } catch (e) {
+            console.error('Failed to log event', e);
           }
 
           setFiles(prev => {
