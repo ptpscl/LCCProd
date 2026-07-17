@@ -4,24 +4,18 @@ from datetime import datetime
 
 # ==========================================
 # DATASET: CUSTOMER DATABASE
-# PURPOSE: BRONZE VALIDATION & ANOMALY DETECTION
+# PURPOSE: SILVER ANOMALY DETECTION
 # OWNER: LEONARD
 # ==========================================
 
 def flag_impossible_birthdays(record):
-    """
-    Example validation logic
-    Flags if age > 120 or birthdate is in the future.
-    """
     try:
         bday = datetime.strptime(record.get('birthday', ''), '%Y-%m-%d')
         age = (datetime.now() - bday).days / 365
-        
         if age < 0:
             return "Future Date Flag"
         if age > 120:
             return "Impossible Age Flag"
-            
         return None
     except ValueError:
         return "Invalid Date Format"
@@ -30,8 +24,6 @@ def validate_dataset(data):
     results = []
     for row in data:
         anomaly = flag_impossible_birthdays(row)
-        
-        # Structure ready to be inserted into Silver (as unresolved or clean)
         results.append({
             "raw_data": row,
             "status": "unresolved" if anomaly else "clean",

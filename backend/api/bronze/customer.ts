@@ -14,11 +14,11 @@ router.post('/upload', async (req, res) => {
     
     // TODO (Leonard): 
     // 1. Receive raw upload from Frontend
-    // 2. Spawn python process: backend/python/customer/validation.py
+    // 2. Spawn python process: backend/python/customer/bronze_schema.py
     // 3. Insert into Supabase (bronze_customers table) or Data Lake
     
     /* Example:
-    const pythonProcess = spawn('python3', ['backend/python/customer/validation.py', JSON.stringify(data)]);
+    const pythonProcess = spawn('python3', ['backend/python/customer/bronze_schema.py', JSON.stringify(data)]);
     // ... handle stdout for anomaly flags ...
     */
     
