@@ -3,10 +3,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 
-// Import your decoupled modular backend routes
-import bronzeRoutes from "./backend/api/bronze.js";
-import silverRoutes from "./backend/api/silver.js";
-import goldRoutes from "./backend/api/gold.js";
+// Import decoupled dataset-specific routes
+import customerBronze from "./backend/api/bronze/customer.js";
+import customerSilver from "./backend/api/silver/customer.js";
+import customerGold from "./backend/api/gold/customer.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,12 +22,11 @@ async function startServer() {
   // BACKEND API ROUTES
   // ==========================================
   
-  // By splitting these into separate files (bronze.ts, silver.ts, gold.ts),
-  // your teammates can work on their respective layers in parallel 
-  // without encountering merge conflicts in the main server file.
-  app.use("/api/bronze", bronzeRoutes);
-  app.use("/api/silver", silverRoutes);
-  app.use("/api/gold", goldRoutes);
+  // Mount Customer Dataset Routes
+  // This ensures Leonard's routes are fully isolated to /api/.../customer
+  app.use("/api/bronze/customer", customerBronze);
+  app.use("/api/silver/customer", customerSilver);
+  app.use("/api/gold/customer", customerGold);
 
   // Health check
   app.get("/api/health", (req, res) => {
