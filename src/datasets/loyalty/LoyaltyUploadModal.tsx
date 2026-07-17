@@ -1,23 +1,20 @@
 import { useState } from 'react';
 import { Upload, X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { useAccess } from '../../governance/useAccess';
-import { DATASETS } from '../../config/datasets';
-import { supabase } from '../../auth/authService';
-import { eventsService } from '../../services/eventsService';
+import { useAccess } from '../../../src/governance/useAccess';
+import { eventsService } from '../../../src/services/eventsService';
+import { uploadLoyaltyBatch } from './loyaltyService';
+import { validateLoyaltyHeader } from './loyaltySchema';
 
-interface UploadBatchModalProps {
+interface LoyaltyUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  activeDatasetId?: string;
 }
 
-export default function UploadBatchModal({ isOpen, onClose, onSuccess, activeDatasetId }: UploadBatchModalProps) {
+export default function LoyaltyUploadModal({ isOpen, onClose, onSuccess }: LoyaltyUploadModalProps) {
   const { currentUser } = useAccess();
   
-  // Array of selected files and their assigned dataset
-  const [files, setFiles] = useState<{ file: File; datasetId: string; status: 'pending' | 'uploading' | 'success' | 'error'; message?: string }[]>([]);
-  
+  const [files, setFiles] = useState<{ file: File; status: 'pending' | 'uploading' | 'success' | 'error'; message?: string }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -28,7 +25,6 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess, activeDat
     if (e.target.files) {
       const newFiles = Array.from(e.target.files).map(file => ({
         file,
-        datasetId: activeDatasetId || DATASETS[0].id,
         status: 'pending' as const
       }));
       setFiles(prev => [...prev, ...newFiles]);
@@ -37,14 +33,6 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess, activeDat
 
   const removeFile = (index: number) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const updateDataset = (index: number, datasetId: string) => {
-    setFiles(prev => {
-      const copy = [...prev];
-      copy[index].datasetId = datasetId;
-      return copy;
-    });
   };
 
   const handleUpload = async () => {
@@ -67,65 +55,40 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess, activeDat
       });
 
       try {
-        const datasetMap: Record<string, string> = {
-          'customer-database': 'customer',
-          'mms-sales': 'mms',
-          'sku-hierarchy': 'sku'
-        };
-        const endpointKey = datasetMap[current.datasetId];
+        // Read the first chunk (1KB should be enough for header)
+        const headerChunk = current.file.slice(0, 1024);
+        const text = await headerChunk.text();
+        const firstLine = text.split('\n')[0];
         
-        // For massive datasets, we must stream the file directly to the backend
-        // by chunking it, to bypass Vercel/Cloud Run payload size limits.
-        const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
-        const totalChunks = Math.ceil(current.file.size / CHUNK_SIZE);
-        const uploadId = crypto.randomUUID();
-        let finalResult = null;
+        const validation = validateLoyaltyHeader(firstLine);
+        if (!validation.ok) {
+          const errMsgParts = [];
+          if (validation.missing.length > 0) errMsgParts.push(`Missing: ${validation.missing.join(', ')}`);
+          if (validation.extra.length > 0) errMsgParts.push(`Extra: ${validation.extra.join(', ')}`);
+          throw new Error(`Invalid schema. ${errMsgParts.join(' | ')}`);
+        }
 
-          for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-            const start = chunkIndex * CHUNK_SIZE;
-            const end = Math.min(start + CHUNK_SIZE, current.file.size);
-            const chunk = current.file.slice(start, end);
+        await uploadLoyaltyBatch(current.file, currentUser.email);
 
-            const formData = new FormData();
-            formData.append('file', chunk, current.file.name);
-            formData.append('chunkIndex', chunkIndex.toString());
-            formData.append('totalChunks', totalChunks.toString());
-            formData.append('uploadId', uploadId);
-
-            const response = await fetch(`/api/bronze/${endpointKey}/upload`, {
-              method: 'POST',
-              body: formData
-            });
-
-            let result;
-            try {
-              const text = await response.text();
-              try {
-                result = JSON.parse(text);
-              } catch (e) {
-                throw new Error(`Upload failed. Server returned: ${text.substring(0, 100)}...`);
-              }
-            } catch (e: any) {
-              throw new Error(e.message || 'Upload failed: Invalid server response');
-            }
-
-            if (!response.ok) {
-              let errMsg = result.error || result.message || 'Upload failed';
-              if (result.errors && result.errors.length > 0) {
-                 errMsg += ' - ' + result.errors[0].error;
-              }
-              throw new Error(errMsg);
-            }
-            
-            finalResult = result;
-          }
-
-          setFiles(prev => {
-            const copy = [...prev];
-            copy[i].status = 'success';
-            copy[i].message = finalResult?.message || 'Success';
-            return copy;
+        const formattedFileSize = (current.file.size / (1024 * 1024)).toFixed(2) + ' MB';
+        try {
+          await eventsService.logEvent({
+            type: 'upload',
+            dataset: 'loyalty-sales',
+            detail: `Uploaded ${current.file.name} (${formattedFileSize})`,
+            actor: currentUser.email
           });
+        } catch (e) {
+          console.error('Failed to log event', e);
+        }
+
+        setFiles(prev => {
+          const copy = [...prev];
+          copy[i].status = 'success';
+          copy[i].message = 'Success';
+          return copy;
+        });
+
       } catch (err: any) {
         allSuccess = false;
         setFiles(prev => {
@@ -150,7 +113,7 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess, activeDat
     <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-[12px] shadow-lg w-full max-w-[600px] overflow-hidden flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-6 border-b border-border-subtle shrink-0">
-          <h3 className="text-[18px] font-semibold text-text-main">Upload to Bronze Layer</h3>
+          <h3 className="text-[18px] font-semibold text-text-main">Upload to Loyalty Sales</h3>
           <button onClick={onClose} className="text-text-muted hover:text-text-main transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
@@ -186,21 +149,12 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess, activeDat
                   
                   {f.status === 'pending' && (
                     <div className="flex items-center space-x-3 shrink-0">
-                      <select 
-                        value={f.datasetId}
-                        onChange={(e) => updateDataset(i, e.target.value)}
-                        className="h-8 px-2 bg-white border border-border-subtle rounded-[6px] text-[12px] text-text-main"
-                      >
-                        {DATASETS.map(d => (
-                          <option key={d.id} value={d.id}>{d.label}</option>
-                        ))}
-                      </select>
+                      <span className="text-[12px] text-text-muted mr-2">loyalty-sales</span>
                       <button onClick={() => removeFile(i)} className="text-text-muted hover:text-error cursor-pointer">
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   )}
-
                   {f.status === 'uploading' && <Loader2 className="w-4 h-4 text-brand-600 animate-spin shrink-0" />}
                   {f.status === 'success' && <CheckCircle2 className="w-4 h-4 text-success shrink-0" />}
                   {f.status === 'error' && <AlertCircle className="w-4 h-4 text-error shrink-0" />}

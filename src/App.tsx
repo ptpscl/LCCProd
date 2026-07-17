@@ -8,6 +8,7 @@ import HistoryView from './components/views/HistoryView';
 import BronzeView from './datasets/components/BronzeView';
 import SilverView from './datasets/components/SilverView';
 import GoldView from './datasets/components/GoldView';
+import LoyaltyUploadModal from './datasets/loyalty/LoyaltyUploadModal';
 import UploadBatchModal from './datasets/components/UploadBatchModal';
 import { UserAccount } from './auth/types';
 import { authService } from './auth/authService';
@@ -76,12 +77,20 @@ export default function App() {
           </div>
         </div>
       </main>
-      <UploadBatchModal 
-        isOpen={isUploadModalOpen} 
-        onClose={() => setIsUploadModalOpen(false)} 
-        onSuccess={handleUploadSuccess}
-        activeDatasetId={getActiveDatasetId()}
-      />
+      {getActiveDatasetId() === 'loyalty-sales' ? (
+        <LoyaltyUploadModal 
+          isOpen={isUploadModalOpen} 
+          onClose={() => setIsUploadModalOpen(false)} 
+          onSuccess={handleUploadSuccess}
+        />
+      ) : (
+        <UploadBatchModal 
+          isOpen={isUploadModalOpen} 
+          onClose={() => setIsUploadModalOpen(false)} 
+          onSuccess={handleUploadSuccess}
+          activeDatasetId={getActiveDatasetId()}
+        />
+      )}
     </div>
   );
 }
