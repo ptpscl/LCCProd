@@ -64,7 +64,19 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
       });
 
       try {
-        // Prepare dummy payload for now until we fully wire FormData
+        const text = await current.file.text();
+        const rows = text.split('\n').map(r => r.trim()).filter(r => r);
+        const headers = rows[0].split(',').map(h => h.trim());
+        
+        const data = rows.slice(1).map(rowStr => {
+          const values = rowStr.split(',').map(v => v.trim());
+          const obj: any = {};
+          headers.forEach((h, idx) => {
+            obj[h] = values[idx] || '';
+          });
+          return obj;
+        });
+
         const datasetMap: Record<string, string> = {
           'customer-database': 'customer',
           'loyalty-sales': 'loyalty',
@@ -77,15 +89,20 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess }: UploadB
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            data: [{ mock: "placeholder data", filename: current.file.name }] 
+            data: data
           })
         });
 
-        if (!response.ok) {
+        let result;
+        try {
+          result = await response.json();
+        } catch (e) {
           throw new Error('Upload failed');
         }
 
-        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || result.message || 'Upload failed');
+        }
 
         setFiles(prev => {
           const copy = [...prev];
