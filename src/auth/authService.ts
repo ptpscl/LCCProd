@@ -27,7 +27,8 @@ export const ADMIN_EMAILS = [
   'rpascual.msds2026@aim.edu',
   'mdoria.msds2026@aim.edu',
   'linciso.msds2026@aim.edu',
-  'mmoran.msds2026@aim.edu'
+  'mmoran.msds2026@aim.edu',
+  'ptdlpascual@gmail.com'
 ];
 // TODO: these are temporary dev admins for testing — remove before client handoff, and move role assignment to Supabase (roles table + RLS) rather than a frontend constant, which is not a real security boundary.
 
