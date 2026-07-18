@@ -25,32 +25,32 @@ class SchemaMismatchError(Exception):
 
 
 EXPECTED_COLUMNS = [
-    "CUSTOMER_NUMBER",
+    "CUSTOMER NUMBER",
     "GENDER",
     "BIRTHDAY",
     "AGE",
     "CITY",
     "PROVINCE",
-    "EXPIRY_DATE",
-    "MEMBER_LOCATION",
-    "APPLICATION_DATE",
-    "MEMBER_SINCE",
-    "LAST_VISIT",
-    "FREQUENCY_OF_VISIT",
-    "LAST_VISITED_STORE",
+    "EXPIRY DATE",
+    "MEMBER LOCATION",
+    "APPLICATION DATE",
+    "MEMBER SINCE",
+    "LAST VISIT",
+    "FREQUENCY OF VISIT",
+    "LAST VISITED STORE",
 ]
 
-DATE_COLUMNS = ["BIRTHDAY", "EXPIRY_DATE", "APPLICATION_DATE", "MEMBER_SINCE", "LAST_VISIT"]
-INTEGER_COLUMNS = ["AGE", "FREQUENCY_OF_VISIT"]
+DATE_COLUMNS = ["BIRTHDAY", "EXPIRY DATE", "APPLICATION DATE", "MEMBER SINCE", "LAST VISIT"]
+INTEGER_COLUMNS = ["AGE", "FREQUENCY OF VISIT"]
 
 
 def _validate_values(df: pd.DataFrame) -> None:
-    customer_numbers = df["CUSTOMER_NUMBER"].fillna("").str.strip()
+    customer_numbers = df["CUSTOMER NUMBER"].fillna("").str.strip()
     if (customer_numbers == "").any():
-        raise SchemaMismatchError("CUSTOMER_NUMBER is required for every row.")
+        raise SchemaMismatchError("CUSTOMER NUMBER is required for every row.")
     duplicates = customer_numbers[customer_numbers.duplicated()].unique().tolist()
     if duplicates:
-        raise SchemaMismatchError(f"Duplicate CUSTOMER_NUMBER values in file: {duplicates[:10]}")
+        raise SchemaMismatchError(f"Duplicate CUSTOMER NUMBER values in file: {duplicates[:10]}")
 
     for column in DATE_COLUMNS:
         invalid = []
@@ -85,7 +85,7 @@ def ingest_batch(batch_id: str) -> dict:
     update_batch(batch_id, "processing")
     try:
         df = pd.read_csv(io.BytesIO(download_file(file_path)), dtype=str)
-        df.columns = [str(column).strip().upper().replace(" ", "_") for column in df.columns]
+        df.columns = [str(column).strip().upper() for column in df.columns]
         missing = [column for column in EXPECTED_COLUMNS if column not in df.columns]
         extra = [column for column in df.columns if column not in EXPECTED_COLUMNS]
         if missing or extra:
@@ -93,6 +93,7 @@ def ingest_batch(batch_id: str) -> dict:
 
         df = df[EXPECTED_COLUMNS]
         _validate_values(df)
+        df.columns = [column.replace(" ", "_") for column in df.columns]
         df["source_batch_id"] = batch_id
         df = df.replace({np.nan: None})
         records = df.to_dict(orient="records")
