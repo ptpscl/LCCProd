@@ -40,10 +40,25 @@ export async function uploadCustomerBatch(file: File, uploadedBy: string): Promi
     throw new Error(`Batch creation failed: ${inserted.error.message}`);
   }
 
-  const response = await fetch(`${ENGINE_URL}/customer/ingest/${inserted.data.id}`, { method: 'POST' });
-  if (!response.ok) throw new Error(await responseError(response, 'Customer validation failed'));
-  const ingestion = await response.json();
-  return { ...inserted.data, status: ingestion.status, row_count: ingestion.rows_ingested } as CustomerBatch;
+  return inserted.data as CustomerBatch;
+}
+
+export async function ingestCustomerBatch(batchId: string) {
+  const response = await fetch(`${ENGINE_URL}/customer/ingest/${batchId}`, { method: 'POST' });
+  if (!response.ok) throw new Error(await responseError(response, 'Customer ingestion failed'));
+  return response.json();
+}
+
+export async function getCustomerBatchStatus(batchId: string) {
+  const response = await fetch(`${ENGINE_URL}/customer/ingest/${batchId}/status`);
+  if (!response.ok) throw new Error(await responseError(response, 'Failed to load batch status'));
+  return response.json();
+}
+
+export async function getCustomerStats(): Promise<{ total_rows: number; last_updated: string | null }> {
+  const response = await fetch(`${ENGINE_URL}/customer/bronze/stats`);
+  if (!response.ok) throw new Error(await responseError(response, 'Failed to load customer statistics'));
+  return response.json();
 }
 
 export async function listCustomerBatches(): Promise<CustomerBatch[]> {

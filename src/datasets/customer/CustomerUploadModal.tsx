@@ -28,8 +28,8 @@ export default function CustomerUploadModal({ isOpen, onClose, onSuccess }: Prop
         if (!validation.ok) {
           throw new Error(`Invalid schema. Missing: ${validation.missing.join(', ') || 'none'}; Extra: ${validation.extra.join(', ') || 'none'}`);
         }
-        const batch = await uploadCustomerBatch(files[index].file, currentUser.email);
-        setFiles(value => value.map((item, i) => i === index ? { ...item, status: 'success', message: `${batch.row_count ?? 0} rows ingested` } : item));
+        await uploadCustomerBatch(files[index].file, currentUser.email);
+        setFiles(value => value.map((item, i) => i === index ? { ...item, status: 'success', message: 'Success' } : item));
       } catch (error: any) {
         succeeded = false;
         setFiles(value => value.map((item, i) => i === index ? { ...item, status: 'error', message: error.message || 'Failed' } : item));
@@ -43,7 +43,7 @@ export default function CustomerUploadModal({ isOpen, onClose, onSuccess }: Prop
     <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-[12px] shadow-lg w-full max-w-[600px] max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between p-6 border-b border-border-subtle">
-          <div><h3 className="text-[18px] font-semibold">Upload Customer Database</h3><p className="text-[12px] text-text-muted mt-1">Files are validated and ingested automatically.</p></div>
+          <div><h3 className="text-[18px] font-semibold">Upload to Customer Database</h3><p className="text-[12px] text-text-muted mt-1">Upload the raw file, then ingest it from the Bronze batch list.</p></div>
           <button onClick={onClose}><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 space-y-4">
@@ -61,7 +61,7 @@ export default function CustomerUploadModal({ isOpen, onClose, onSuccess }: Prop
             </div>
           ))}
           <button disabled={!files.length || uploading} onClick={upload} className="w-full h-10 flex items-center justify-center bg-brand-600 text-white rounded-[8px] disabled:opacity-50">
-            {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />} Upload and ingest
+            {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />} Upload directly to Data Lake
           </button>
         </div>
       </div>
