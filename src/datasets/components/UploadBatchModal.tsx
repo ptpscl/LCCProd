@@ -4,6 +4,8 @@ import { useAccess } from '../../governance/useAccess';
 import { DATASETS } from '../../config/datasets';
 import { supabase } from '../../auth/authService';
 import { eventsService } from '../../services/eventsService';
+import { uploadCustomerBatch } from '../customer/customerService';
+import { validateCustomerHeader } from '../customer/customerSchema';
 
 interface UploadBatchModalProps {
   isOpen: boolean;
@@ -67,12 +69,36 @@ export default function UploadBatchModal({ isOpen, onClose, onSuccess, activeDat
       });
 
       try {
+        // Customer database has its own Supabase-backed batch pipeline. Keep this
+        // fallback here in case Customer is selected from the generic uploader.
+        if (current.datasetId === 'customer-database') {
+          const firstLine = (await current.file.slice(0, 4096).text()).split(/\r?\n/)[0];
+          const validation = validateCustomerHeader(firstLine);
+          if (!validation.ok) {
+            const details = [];
+            if (validation.missing.length) details.push(`Missing: ${validation.missing.join(', ')}`);
+            if (validation.extra.length) details.push(`Extra: ${validation.extra.join(', ')}`);
+            throw new Error(`Invalid schema. ${details.join(' | ')}`);
+          }
+
+          await uploadCustomerBatch(current.file, currentUser.email);
+          setFiles(prev => {
+            const copy = [...prev];
+            copy[i].status = 'success';
+            copy[i].message = 'Uploaded to Customer Database';
+            return copy;
+          });
+          continue;
+        }
+
         const datasetMap: Record<string, string> = {
-          'customer-database': 'customer',
           'mms-sales': 'mms',
           'sku-hierarchy': 'sku'
         };
         const endpointKey = datasetMap[current.datasetId];
+        if (!endpointKey) {
+          throw new Error(`No upload pipeline is configured for ${current.datasetId}.`);
+        }
         
         // For massive datasets, we must stream the file directly to the backend
         // by chunking it, to bypass Vercel/Cloud Run payload size limits.
