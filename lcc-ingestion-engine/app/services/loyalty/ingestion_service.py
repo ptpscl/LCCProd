@@ -2,7 +2,7 @@ import io
 import logging
 import pandas as pd
 import numpy as np
-from app.services.supabase_service import (
+from app.services.loyalty.supabase_service import (
     get_batch, download_file, update_batch, get_client,
     update_batch_meta, check_existing_ingested_batch
 )

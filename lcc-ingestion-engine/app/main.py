@@ -1,7 +1,10 @@
 import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import health, bronze, ingest
+
+from app.routers import health
+from app.routers.loyalty import bronze, ingest
 
 logging.basicConfig(level=logging.INFO)
 

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
 import logging
-from app.services.ingestion_service import ingest_batch, BatchNotFoundError, SchemaMismatchError
-from app.services.supabase_service import get_batch
+from app.services.loyalty.ingestion_service import ingest_batch, BatchNotFoundError, SchemaMismatchError
+from app.services.loyalty.supabase_service import get_batch
 
-router = APIRouter(prefix="/ingest", tags=["ingest"])
+router = APIRouter(prefix="/loyalty/ingest", tags=["ingest"])
 logger = logging.getLogger(__name__)
 
 @router.post("/{batch_id}")

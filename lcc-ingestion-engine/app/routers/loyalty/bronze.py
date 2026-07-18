@@ -4,9 +4,9 @@ import logging
 import io
 import csv
 from typing import Optional
-from app.services.supabase_service import get_client
+from app.services.loyalty.supabase_service import get_client
 
-router = APIRouter(prefix="/bronze", tags=["bronze"])
+router = APIRouter(prefix="/loyalty/bronze", tags=["bronze"])
 logger = logging.getLogger(__name__)
 
 def _build_filter_query(query, store_code: Optional[str], date_from: Optional[str], date_to: Optional[str], sku_code: Optional[str]):
