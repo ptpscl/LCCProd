@@ -88,3 +88,81 @@ export async function getBatchStatus(batchId: string): Promise<any> {
   }
   return await res.json();
 }
+
+export async function getBronzeStats(): Promise<{ total_rows: number, last_updated: string | null }> {
+  const res = await fetch(`${INGESTION_ENGINE_URL}/bronze/stats`);
+  if (!res.ok) throw new Error('Failed to fetch bronze stats');
+  return res.json();
+}
+
+export interface BronzeRowParams {
+  store_code?: string;
+  date_from?: string;
+  date_to?: string;
+  sku_code?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export async function getBronzeRows(params: BronzeRowParams): Promise<{
+  rows: any[];
+  page: number;
+  page_size: number;
+  total_matching_rows: number;
+}> {
+  const query = new URLSearchParams();
+  if (params.store_code) query.append('store_code', params.store_code);
+  if (params.date_from) query.append('date_from', params.date_from);
+  if (params.date_to) query.append('date_to', params.date_to);
+  if (params.sku_code) query.append('sku_code', params.sku_code);
+  if (params.page) query.append('page', params.page.toString());
+  if (params.page_size) query.append('page_size', params.page_size.toString());
+
+  const res = await fetch(`${INGESTION_ENGINE_URL}/bronze/rows?${query.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch bronze rows');
+  return res.json();
+}
+
+export async function exportBronzeRows(params: BronzeRowParams): Promise<void> {
+  const query = new URLSearchParams();
+  if (params.store_code) query.append('store_code', params.store_code);
+  if (params.date_from) query.append('date_from', params.date_from);
+  if (params.date_to) query.append('date_to', params.date_to);
+  if (params.sku_code) query.append('sku_code', params.sku_code);
+
+  const res = await fetch(`${INGESTION_ENGINE_URL}/bronze/export?${query.toString()}`);
+  
+  if (!res.ok) {
+    let detail = 'Export failed';
+    try {
+      const errorData = await res.json();
+      if (errorData && errorData.detail) detail = errorData.detail;
+    } catch (e) {}
+    throw new Error(detail);
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  
+  const contentDisposition = res.headers.get('Content-Disposition');
+  let filename = 'loyalty_export.csv';
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename=(.+)/);
+    if (match) filename = match[1];
+  } else {
+    // fallback if no header
+    const parts = ["loyalty_export"];
+    if (params.store_code) parts.append(params.store_code);
+    if (params.date_from) parts.append(params.date_from);
+    if (params.date_to) parts.append(params.date_to);
+    filename = parts.join("_") + ".csv";
+  }
+  
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}

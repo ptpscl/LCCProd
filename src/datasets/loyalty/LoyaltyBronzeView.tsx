@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { LoyaltyBatch, listLoyaltyBatches, ingestBatch, getBatchStatus } from './loyaltyService';
 import { Loader2 } from 'lucide-react';
+import LoyaltyDataView from './LoyaltyDataView';
 
 export default function LoyaltyBronzeView({ refreshTrigger }: { refreshTrigger: number }) {
   const [batches, setBatches] = useState<LoyaltyBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [ingesting, setIngesting] = useState<Record<string, boolean>>({});
+  const [viewMode, setViewMode] = useState<'batches' | 'data'>('batches');
   
   // Toast state
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
@@ -97,11 +99,25 @@ export default function LoyaltyBronzeView({ refreshTrigger }: { refreshTrigger: 
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-6">
-          <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">Total Batches</h3>
-          <p className="text-[28px] font-bold text-text-main">{loading ? '-' : totalBatches}</p>
-        </div>
+      {viewMode === 'data' ? (
+        <LoyaltyDataView onBack={() => setViewMode('batches')} showToast={showToast} />
+      ) : (
+        <>
+          <div className="flex justify-between items-center mb-[-8px]">
+             <h2 className="text-[18px] font-semibold text-text-main">Bronze Loyalty Data</h2>
+             <button
+               onClick={() => setViewMode('data')}
+               className="inline-flex items-center justify-center h-9 px-4 rounded-[6px] text-[13px] font-medium bg-[#0054A6] text-white hover:bg-[#004385] transition-colors"
+             >
+               View Data
+             </button>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-6">
+            <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-6">
+              <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">Total Batches</h3>
+              <p className="text-[28px] font-bold text-text-main">{loading ? '-' : totalBatches}</p>
+            </div>
         <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-6">
           <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">Total Rows</h3>
           <p className="text-[28px] font-bold text-text-main">{loading ? '-' : totalRows.toLocaleString()}</p>
@@ -263,6 +279,8 @@ export default function LoyaltyBronzeView({ refreshTrigger }: { refreshTrigger: 
           </table>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
