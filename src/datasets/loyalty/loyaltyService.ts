@@ -1,6 +1,7 @@
 import { supabase } from '../../auth/authService';
 
-const INGESTION_ENGINE_URL = import.meta.env.VITE_INGESTION_ENGINE_URL || 'https://lccprod-production.up.railway.app';
+const INGESTION_ENGINE_URL = (import.meta as any).env.VITE_INGESTION_ENGINE_URL || 'https://lccprod-production.up.railway.app';
+const LOYALTY_API_URL = `${INGESTION_ENGINE_URL}/loyalty`;
 
 export interface LoyaltyBatch {
   id: string;
@@ -58,7 +59,7 @@ export async function listLoyaltyBatches(): Promise<LoyaltyBatch[]> {
 }
 
 export async function ingestBatch(batchId: string): Promise<any> {
-  const res = await fetch(`${INGESTION_ENGINE_URL}/ingest/${batchId}`, {
+  const res = await fetch(`${LOYALTY_API_URL}/ingest/${batchId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -82,7 +83,7 @@ export async function ingestBatch(batchId: string): Promise<any> {
 }
 
 export async function getBatchStatus(batchId: string): Promise<any> {
-  const res = await fetch(`${INGESTION_ENGINE_URL}/ingest/${batchId}/status`);
+  const res = await fetch(`${LOYALTY_API_URL}/ingest/${batchId}/status`);
   if (!res.ok) {
     throw new Error('Failed to fetch batch status');
   }
@@ -90,7 +91,7 @@ export async function getBatchStatus(batchId: string): Promise<any> {
 }
 
 export async function getBronzeStats(): Promise<{ total_rows: number, last_updated: string | null }> {
-  const res = await fetch(`${INGESTION_ENGINE_URL}/bronze/stats`);
+  const res = await fetch(`${LOYALTY_API_URL}/bronze/stats`);
   if (!res.ok) throw new Error('Failed to fetch bronze stats');
   return res.json();
 }
@@ -118,7 +119,7 @@ export async function getBronzeRows(params: BronzeRowParams): Promise<{
   if (params.page) query.append('page', params.page.toString());
   if (params.page_size) query.append('page_size', params.page_size.toString());
 
-  const res = await fetch(`${INGESTION_ENGINE_URL}/bronze/rows?${query.toString()}`);
+  const res = await fetch(`${LOYALTY_API_URL}/bronze/rows?${query.toString()}`);
   if (!res.ok) throw new Error('Failed to fetch bronze rows');
   return res.json();
 }
@@ -130,7 +131,7 @@ export async function exportBronzeRows(params: BronzeRowParams): Promise<void> {
   if (params.date_to) query.append('date_to', params.date_to);
   if (params.sku_code) query.append('sku_code', params.sku_code);
 
-  const res = await fetch(`${INGESTION_ENGINE_URL}/bronze/export?${query.toString()}`);
+  const res = await fetch(`${LOYALTY_API_URL}/bronze/export?${query.toString()}`);
   
   if (!res.ok) {
     let detail = 'Export failed';
