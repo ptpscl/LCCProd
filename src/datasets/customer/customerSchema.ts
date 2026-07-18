@@ -1,17 +1,17 @@
 export const EXPECTED_CUSTOMER_COLUMNS = [
-  'CUSTOMER NUMBER',
+  'CUSTOMER_NUMBER',
   'GENDER',
   'BIRTHDAY',
   'AGE',
   'CITY',
   'PROVINCE',
-  'EXPIRY DATE',
-  'MEMBER LOCATION',
-  'APPLICATION DATE',
-  'MEMBER SINCE',
-  'LAST VISIT',
-  'FREQUENCY OF VISIT',
-  'LAST VISITED STORE',
+  'EXPIRY_DATE',
+  'MEMBER_LOCATION',
+  'APPLICATION_DATE',
+  'MEMBER_SINCE',
+  'LAST_VISIT',
+  'FREQUENCY_OF_VISIT',
+  'LAST_VISITED_STORE',
 ] as const;
 
 export function validateCustomerHeader(headerLine: string) {
