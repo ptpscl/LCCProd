@@ -1,5 +1,7 @@
 import { supabase } from '../../auth/authService';
 
+const INGESTION_ENGINE_URL = import.meta.env.VITE_INGESTION_ENGINE_URL || 'https://lccprod-production.up.railway.app';
+
 export interface LoyaltyBatch {
   id: string;
   file_name: string;
@@ -9,6 +11,8 @@ export interface LoyaltyBatch {
   status: string;
   uploaded_by: string;
   created_at: string;
+  store_code?: string | null;
+  year_month?: string | null;
 }
 
 export async function uploadLoyaltyBatch(file: File, userEmail: string): Promise<LoyaltyBatch> {
@@ -51,4 +55,36 @@ export async function listLoyaltyBatches(): Promise<LoyaltyBatch[]> {
   }
   
   return data as LoyaltyBatch[];
+}
+
+export async function ingestBatch(batchId: string): Promise<any> {
+  const res = await fetch(`${INGESTION_ENGINE_URL}/ingest/${batchId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+  
+  if (!res.ok) {
+    let detail = 'Ingestion failed';
+    try {
+      const errorData = await res.json();
+      if (errorData && errorData.detail) {
+        detail = errorData.detail;
+      }
+    } catch (e) {
+      // Ignore
+    }
+    throw new Error(detail);
+  }
+  
+  return await res.json();
+}
+
+export async function getBatchStatus(batchId: string): Promise<any> {
+  const res = await fetch(`${INGESTION_ENGINE_URL}/ingest/${batchId}/status`);
+  if (!res.ok) {
+    throw new Error('Failed to fetch batch status');
+  }
+  return await res.json();
 }
