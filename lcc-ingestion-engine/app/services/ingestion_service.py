@@ -41,7 +41,7 @@ def ingest_batch(batch_id: str) -> dict:
 
     try:
         logger.info(f"Parsing CSV/TSV for batch {batch_id}")
-        df = pd.read_csv(io.BytesIO(csv_bytes), sep='\t', dtype=str)
+        df = pd.read_csv(io.BytesIO(csv_bytes), dtype=str)
     except Exception as e:
         update_batch(batch_id, None, 'ingestion_failed')
         raise SchemaMismatchError(f"Failed to parse CSV/TSV: {e}")
