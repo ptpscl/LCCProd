@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { bronzeService, BronzeBatch } from '../bronzeService';
 import LoyaltyBronzeView from '../loyalty/LoyaltyBronzeView';
+import SkuBronzeView from '../sku/SkuBronzeView';
 
 function DefaultBronzeView({ datasetId, refreshTrigger }: { datasetId: string, refreshTrigger: number }) {
   const [batches, setBatches] = useState<BronzeBatch[]>([]);
@@ -104,6 +105,9 @@ function DefaultBronzeView({ datasetId, refreshTrigger }: { datasetId: string, r
 export default function BronzeView({ datasetId, refreshTrigger }: { datasetId: string, refreshTrigger: number }) {
   if (datasetId === 'loyalty-sales') {
     return <LoyaltyBronzeView refreshTrigger={refreshTrigger} />;
+  }
+  if (datasetId === 'sku-hierarchy') {
+    return <SkuBronzeView refreshTrigger={refreshTrigger} />;
   }
   return <DefaultBronzeView datasetId={datasetId} refreshTrigger={refreshTrigger} />;
 }

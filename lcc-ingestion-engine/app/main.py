@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import health
 from app.routers.loyalty import bronze, ingest
+from app.routers.sku import bronze as sku_bronze, ingest as sku_ingest
 
 logging.basicConfig(level=logging.INFO)
 
@@ -21,3 +22,5 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(bronze.router)
 app.include_router(ingest.router)
+app.include_router(sku_bronze.router)
+app.include_router(sku_ingest.router)
