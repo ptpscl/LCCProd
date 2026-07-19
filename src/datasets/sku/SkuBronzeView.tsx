@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SkuBatch, listSkuBatches, ingestBatch, getBatchStatus } from './skuService';
+import { SkuBatch, listSkuBatches, ingestBatch, getBatchStatus, getBronzeStats } from './skuService';
 import { Loader2 } from 'lucide-react';
 import SkuDataView from './SkuDataView';
 
@@ -30,6 +30,13 @@ export default function SkuBronzeView({ refreshTrigger }: { refreshTrigger: numb
   const [loading, setLoading] = useState(true);
   const [ingesting, setIngesting] = useState<Record<string, boolean>>({});
   const [viewMode, setViewMode] = useState<'batches' | 'data'>('batches');
+  const [liveRowCount, setLiveRowCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    getBronzeStats()
+      .then(stats => setLiveRowCount(stats.total_rows))
+      .catch(() => setLiveRowCount(null));
+  }, [refreshTrigger]);
 
   // Toast state
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
@@ -92,7 +99,6 @@ export default function SkuBronzeView({ refreshTrigger }: { refreshTrigger: numb
   };
 
   const totalBatches = batches.length;
-  const totalRows = batches.reduce((sum, b) => sum + (b.row_count || 0), 0);
   const totalSizeBytes = batches.reduce((sum, b) => sum + (b.file_size_bytes || 0), 0);
 
   const formatSize = (bytes: number) => {
@@ -145,7 +151,7 @@ export default function SkuBronzeView({ refreshTrigger }: { refreshTrigger: numb
             </div>
         <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-6">
           <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">Total Rows</h3>
-          <p className="text-[28px] font-bold text-text-main">{loading ? '-' : totalRows.toLocaleString()}</p>
+          <p className="text-[28px] font-bold text-text-main">{liveRowCount == null ? '-' : liveRowCount.toLocaleString()}</p>
         </div>
         <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-6">
           <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">Storage Size</h3>
