@@ -6,6 +6,7 @@ import pandas as pd
 from app.services.customer.customer_schema import (
     CustomerValidationError,
     EXPECTED_COLUMNS,
+    iter_customer_csv_chunks,
     read_customer_csv,
     to_json_safe_records,
     validate_and_cast_customer_frame,
@@ -105,6 +106,21 @@ class CustomerSchemaTests(unittest.TestCase):
 
         self.assertEqual(encoding, "cp1252")
         self.assertEqual(frame.iloc[0]["CITY"], "PEÑA CITY")
+
+    def test_reads_large_customer_file_in_bounded_chunks(self):
+        header = ",".join(EXPECTED_COLUMNS)
+        row = valid_row()
+        rows = []
+        for index in range(5):
+            current = {**row, "CUSTOMER NUMBER": f"C-{index}"}
+            rows.append(",".join(current[column] for column in EXPECTED_COLUMNS))
+        file_bytes = (header + "\n" + "\n".join(rows)).encode("utf-8")
+
+        chunks, encoding = iter_customer_csv_chunks(file_bytes, chunk_size=2)
+        chunk_sizes = [len(chunk) for chunk in chunks]
+
+        self.assertEqual(encoding, "utf-8-sig")
+        self.assertEqual(chunk_sizes, [2, 2, 1])
 
 
 if __name__ == "__main__":

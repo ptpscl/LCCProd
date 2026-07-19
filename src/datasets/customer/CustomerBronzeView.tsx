@@ -44,13 +44,48 @@ export default function CustomerBronzeView({ refreshTrigger }: { refreshTrigger:
 
   useEffect(() => { void loadBatches(); }, [refreshTrigger]);
 
+  useEffect(() => {
+    if (!batches.some(batch => batch.status === 'processing')) return;
+    const timer = window.setInterval(() => {
+      listCustomerBatches().then(setBatches).catch(error => {
+        console.error('Failed to refresh processing Customer batches', error);
+      });
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [batches]);
+
   const handleIngest = async (batchId: string) => {
     setIngesting(previous => ({ ...previous, [batchId]: true }));
     try {
       const result = await ingestCustomerBatch(batchId);
-      showToast(result.status === 'already_ingested' ? 'Batch was already ingested.' : `Ingested ${result.rows_ingested.toLocaleString()} Customer rows.`, result.status === 'already_ingested' ? 'info' : 'success');
-      const status = await getCustomerBatchStatus(batchId);
-      setBatches(previous => previous.map(batch => batch.id === batchId ? { ...batch, status: status.status, row_count: status.row_count } : batch));
+      if (result.status === 'already_ingested') {
+        showToast('Batch was already ingested.', 'info');
+        await loadBatches();
+        return;
+      }
+
+      setBatches(previous => previous.map(batch => batch.id === batchId
+        ? { ...batch, status: 'processing' }
+        : batch));
+      showToast('Customer ingestion started in the background.', 'info');
+
+      let finalStatus: any = { status: 'processing' };
+      for (let attempt = 0; attempt < 360; attempt += 1) {
+        await new Promise(resolve => window.setTimeout(resolve, 5000));
+        finalStatus = await getCustomerBatchStatus(batchId);
+        setBatches(previous => previous.map(batch => batch.id === batchId
+          ? { ...batch, status: finalStatus.status, row_count: finalStatus.row_count }
+          : batch));
+        if (finalStatus.status !== 'processing') break;
+      }
+
+      if (finalStatus.status === 'ingested') {
+        showToast(`Ingested ${(finalStatus.row_count || 0).toLocaleString()} Customer rows.`, 'success');
+      } else if (['validation_failed', 'ingestion_failed'].includes(finalStatus.status)) {
+        showToast(`Customer ingestion ended with status: ${finalStatus.status.replaceAll('_', ' ')}.`, 'error');
+      } else {
+        showToast('Customer ingestion is still running. The batch status will continue to refresh.', 'info');
+      }
     } catch (error: any) {
       showToast(error.message || 'Customer ingestion failed', 'error');
       await loadBatches();

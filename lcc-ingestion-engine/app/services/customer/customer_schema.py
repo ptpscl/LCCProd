@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import codecs
 import io
 
 import pandas as pd
@@ -24,25 +25,49 @@ class CustomerValidationError(ValueError):
     """Raised when an uploaded Customer file violates the domain schema."""
 
 
-def read_customer_csv(file_bytes: bytes) -> tuple[pd.DataFrame, str]:
-    """Read CSV/TSV bytes using common source-system encodings."""
+def detect_customer_encoding(file_bytes: bytes) -> str:
+    """Validate bytes incrementally and return the first supported encoding."""
     decoding_errors: list[str] = []
     for encoding in ("utf-8-sig", "cp1252", "latin-1"):
         try:
-            frame = pd.read_csv(
-                io.BytesIO(file_bytes),
-                sep=None,
-                engine="python",
-                dtype=str,
-                encoding=encoding,
-            )
-            return frame, encoding
+            decoder = codecs.getincrementaldecoder(encoding)(errors="strict")
+            for start in range(0, len(file_bytes), 1024 * 1024):
+                decoder.decode(file_bytes[start:start + 1024 * 1024], final=False)
+            decoder.decode(b"", final=True)
+            return encoding
         except UnicodeDecodeError as exc:
             decoding_errors.append(f"{encoding}: {exc}")
 
     raise CustomerValidationError(
         "Customer file encoding is unsupported. " + " | ".join(decoding_errors)
     )
+
+
+def read_customer_csv(file_bytes: bytes) -> tuple[pd.DataFrame, str]:
+    """Read a complete Customer file. Intended for tests and smaller files."""
+    encoding = detect_customer_encoding(file_bytes)
+    frame = pd.read_csv(
+        io.BytesIO(file_bytes),
+        sep=None,
+        engine="python",
+        dtype=str,
+        encoding=encoding,
+    )
+    return frame, encoding
+
+
+def iter_customer_csv_chunks(file_bytes: bytes, chunk_size: int = 5_000):
+    """Return a bounded-memory Customer CSV reader and detected encoding."""
+    encoding = detect_customer_encoding(file_bytes)
+    reader = pd.read_csv(
+        io.BytesIO(file_bytes),
+        sep=None,
+        engine="python",
+        dtype=str,
+        encoding=encoding,
+        chunksize=chunk_size,
+    )
+    return reader, encoding
 
 
 def _is_blank(value: object) -> bool:

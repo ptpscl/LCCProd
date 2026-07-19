@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import logging
 
+import pandas as pd
+
 from app.services.customer.customer_schema import (
     CustomerValidationError,
-    read_customer_csv,
+    EXPECTED_COLUMNS,
+    iter_customer_csv_chunks,
     to_json_safe_records,
     validate_and_cast_customer_frame,
 )
@@ -30,7 +33,7 @@ def ingest_batch(batch_id: str) -> dict:
         raise CustomerBatchNotFoundError(f"Customer batch {batch_id} not found")
 
     existing_row_count = count_rows_for_batch(batch_id)
-    if existing_row_count:
+    if existing_row_count and batch.get("status") == "ingested":
         update_batch(batch_id, "ingested", existing_row_count)
         return {
             "batch_id": batch_id,
@@ -38,6 +41,13 @@ def ingest_batch(batch_id: str) -> dict:
             "rows_ingested": 0,
             "row_count": existing_row_count,
         }
+    if existing_row_count:
+        logger.warning(
+            "Removing %s partial rows before retrying Customer batch %s",
+            existing_row_count,
+            batch_id,
+        )
+        delete_rows_for_batch(batch_id)
 
     file_path = batch.get("file_path")
     if not file_path:
@@ -51,38 +61,61 @@ def ingest_batch(batch_id: str) -> dict:
         update_batch(batch_id, "ingestion_failed")
         raise RuntimeError(f"Customer file download failed: {exc}") from exc
 
+    rows_inserted = 0
+    seen_row_hashes: set[int] = set()
     try:
-        raw_frame, detected_encoding = read_customer_csv(file_bytes)
+        chunks, detected_encoding = iter_customer_csv_chunks(file_bytes)
         logger.info(
-            "Parsed Customer batch %s using %s encoding",
+            "Processing Customer batch %s using %s encoding",
             batch_id,
             detected_encoding,
         )
-        clean_frame = validate_and_cast_customer_frame(raw_frame)
-        clean_frame["source_batch_id"] = batch_id
-        records = to_json_safe_records(clean_frame)
+        for raw_frame in chunks:
+            clean_frame = validate_and_cast_customer_frame(raw_frame)
+            row_hashes = pd.util.hash_pandas_object(
+                clean_frame[EXPECTED_COLUMNS],
+                index=False,
+            ).astype("uint64").tolist()
+            cross_chunk_duplicates = [
+                int(clean_frame.index[position]) + 2
+                for position, row_hash in enumerate(row_hashes)
+                if int(row_hash) in seen_row_hashes
+            ]
+            if cross_chunk_duplicates:
+                raise CustomerValidationError(
+                    "Fully identical Customer rows are not allowed; "
+                    f"duplicate CSV rows: {cross_chunk_duplicates[:10]}"
+                )
+            seen_row_hashes.update(int(row_hash) for row_hash in row_hashes)
+            clean_frame["source_batch_id"] = batch_id
+            records = to_json_safe_records(clean_frame)
+            insert_customer_rows(records)
+            rows_inserted += len(records)
+            logger.info(
+                "Inserted %s Customer rows for batch %s",
+                rows_inserted,
+                batch_id,
+            )
+        if rows_inserted == 0:
+            raise CustomerValidationError("Customer file contains no data rows")
     except CustomerValidationError:
+        if rows_inserted:
+            delete_rows_for_batch(batch_id)
         update_batch(batch_id, "validation_failed")
         raise
     except Exception as exc:
-        update_batch(batch_id, "validation_failed")
-        raise CustomerValidationError(f"Could not parse Customer CSV/TSV: {exc}") from exc
-
-    try:
-        insert_customer_rows(records)
-    except Exception as exc:
-        logger.exception("Customer insertion failed for batch %s", batch_id)
+        logger.exception("Customer processing failed for batch %s", batch_id)
         try:
             delete_rows_for_batch(batch_id)
         except Exception:
             logger.exception("Customer rollback failed for batch %s", batch_id)
         update_batch(batch_id, "ingestion_failed")
-        raise RuntimeError(f"Customer insertion failed: {exc}") from exc
+        raise RuntimeError(f"Customer processing failed: {exc}") from exc
 
-    update_batch(batch_id, "ingested", len(records))
+    update_batch(batch_id, "ingested", rows_inserted)
     return {
         "batch_id": batch_id,
         "status": "ingested",
-        "rows_ingested": len(records),
-        "row_count": len(records),
+        "rows_ingested": rows_inserted,
+        "row_count": rows_inserted,
     }
