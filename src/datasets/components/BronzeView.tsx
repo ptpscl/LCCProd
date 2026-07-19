@@ -3,6 +3,7 @@ import { bronzeService, BronzeBatch } from '../bronzeService';
 import LoyaltyBronzeView from '../loyalty/LoyaltyBronzeView';
 import SkuBronzeView from '../sku/SkuBronzeView';
 import CustomerBronzeView from '../customer/CustomerBronzeView';
+import MmsBronzeView from '../mms/MmsBronzeView';
 
 function DefaultBronzeView({ datasetId, refreshTrigger }: { datasetId: string, refreshTrigger: number }) {
   const [batches, setBatches] = useState<BronzeBatch[]>([]);
@@ -112,6 +113,9 @@ export default function BronzeView({ datasetId, refreshTrigger }: { datasetId: s
   }
   if (datasetId === 'sku-hierarchy') {
     return <SkuBronzeView refreshTrigger={refreshTrigger} />;
+  }
+  if (datasetId === 'mms-sales') {
+    return <MmsBronzeView refreshTrigger={refreshTrigger} />;
   }
   return <DefaultBronzeView datasetId={datasetId} refreshTrigger={refreshTrigger} />;
 }
