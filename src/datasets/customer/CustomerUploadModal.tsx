@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AlertCircle, CheckCircle2, Loader2, Upload, X } from 'lucide-react';
 
 import { useAccess } from '../../governance/useAccess';
+import { eventsService } from '../../services/eventsService';
 import { validateCustomerHeader } from './customerSchema';
 import { uploadCustomerBatch } from './customerService';
 
@@ -40,6 +41,19 @@ export default function CustomerUploadModal({ isOpen, onClose, onSuccess }: Prop
           throw new Error(`Invalid schema. ${details.join(' | ')}`);
         }
         const batch = await uploadCustomerBatch(files[index].file, currentUser.email);
+        const formattedFileSize = files[index].file.size < 1024 * 1024
+          ? `${(files[index].file.size / 1024).toFixed(1)} KB`
+          : `${(files[index].file.size / 1024 / 1024).toFixed(2)} MB`;
+        try {
+          await eventsService.logEvent({
+            type: 'upload',
+            dataset: 'customer-database',
+            detail: `Uploaded ${files[index].file.name} (${formattedFileSize}), batch ${batch.id.slice(0, 8)}`,
+            actor: currentUser.email,
+          });
+        } catch (eventError) {
+          console.error('Failed to log Customer upload event', eventError);
+        }
         updateFile(index, { status: 'success', message: `Batch ${batch.id.slice(0, 8)} created.` });
       } catch (uploadError: any) {
         allSucceeded = false;
