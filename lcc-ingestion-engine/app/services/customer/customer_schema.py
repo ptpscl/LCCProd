@@ -65,13 +65,7 @@ def validate_and_cast_customer_frame(frame: pd.DataFrame) -> pd.DataFrame:
             f"CUSTOMER NUMBER is required; invalid CSV rows: {blank_rows[:10]}"
         )
 
-    canonical_numbers = customer_numbers.str.upper()
-    duplicates = canonical_numbers[canonical_numbers.duplicated(keep=False)].unique().tolist()
-    if duplicates:
-        raise CustomerValidationError(
-            f"CUSTOMER NUMBER must be unique within the file; duplicates: {duplicates[:10]}"
-        )
-    clean["CUSTOMER NUMBER"] = customer_numbers
+    clean["CUSTOMER NUMBER"] = customer_numbers.str.upper()
 
     for column in DATE_COLUMNS:
         cast_values: list[str | None] = []
@@ -117,6 +111,14 @@ def validate_and_cast_customer_frame(frame: pd.DataFrame) -> pd.DataFrame:
             continue
         clean[column] = clean[column].map(
             lambda value: None if _is_blank(value) else str(value).strip()
+        )
+
+    identical_duplicates = clean.duplicated(subset=EXPECTED_COLUMNS, keep=False)
+    if identical_duplicates.any():
+        duplicate_rows = (clean.index[identical_duplicates] + 2).tolist()
+        raise CustomerValidationError(
+            "Fully identical Customer rows are not allowed; "
+            f"duplicate CSV rows: {duplicate_rows[:10]}"
         )
 
     return clean

@@ -13,7 +13,6 @@ from app.services.customer.supabase_service import (
     count_rows_for_batch,
     delete_rows_for_batch,
     download_batch_file,
-    find_existing_customer_numbers,
     get_batch,
     insert_customer_rows,
     update_batch,
@@ -56,13 +55,6 @@ def ingest_batch(batch_id: str) -> dict:
     try:
         raw_frame = pd.read_csv(io.BytesIO(file_bytes), sep=None, engine="python", dtype=str)
         clean_frame = validate_and_cast_customer_frame(raw_frame)
-        customer_numbers = clean_frame["CUSTOMER NUMBER"].tolist()
-        existing_numbers = find_existing_customer_numbers(customer_numbers)
-        if existing_numbers:
-            raise CustomerValidationError(
-                "CUSTOMER NUMBER already exists in Bronze; "
-                f"duplicates: {existing_numbers[:10]}"
-            )
         clean_frame["source_batch_id"] = batch_id
         records = clean_frame.to_dict(orient="records")
     except CustomerValidationError:

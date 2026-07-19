@@ -64,20 +64,6 @@ def count_rows_for_batch(batch_id: str) -> int:
     return response.count or 0
 
 
-def find_existing_customer_numbers(customer_numbers: list[str]) -> list[str]:
-    existing: list[str] = []
-    for start in range(0, len(customer_numbers), 500):
-        chunk = customer_numbers[start:start + 500]
-        response = (
-            _client.table("bronze_customer_database")
-            .select('"CUSTOMER NUMBER"')
-            .in_("CUSTOMER NUMBER", chunk)
-            .execute()
-        )
-        existing.extend(row["CUSTOMER NUMBER"] for row in (response.data or []))
-    return existing
-
-
 def insert_customer_rows(rows: list[dict], chunk_size: int = 1000) -> None:
     for start in range(0, len(rows), chunk_size):
         _client.table("bronze_customer_database").insert(rows[start:start + chunk_size]).execute()

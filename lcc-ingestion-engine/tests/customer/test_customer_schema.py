@@ -54,16 +54,25 @@ class CustomerSchemaTests(unittest.TestCase):
         with self.assertRaisesRegex(CustomerValidationError, "AGE"):
             validate_and_cast_customer_frame(pd.DataFrame([invalid_age]))
 
-    def test_rejects_missing_and_duplicate_customer_numbers(self):
+    def test_rejects_missing_customer_numbers(self):
         missing = valid_row()
         missing["CUSTOMER NUMBER"] = ""
         with self.assertRaisesRegex(CustomerValidationError, "required"):
             validate_and_cast_customer_frame(pd.DataFrame([missing]))
 
+    def test_allows_repeated_customer_number_when_other_columns_differ(self):
         first = valid_row()
         second = valid_row()
         second["CUSTOMER NUMBER"] = " c-100 "
-        with self.assertRaisesRegex(CustomerValidationError, "unique within the file"):
+        second["CITY"] = "Mandaue City"
+        result = validate_and_cast_customer_frame(pd.DataFrame([first, second]))
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result["CUSTOMER NUMBER"].tolist(), ["C-100", "C-100"])
+
+    def test_rejects_fully_identical_rows(self):
+        first = valid_row()
+        second = valid_row()
+        with self.assertRaisesRegex(CustomerValidationError, "Fully identical"):
             validate_and_cast_customer_frame(pd.DataFrame([first, second]))
 
 
