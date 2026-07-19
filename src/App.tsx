@@ -9,6 +9,7 @@ import BronzeView from './datasets/components/BronzeView';
 import SilverView from './datasets/components/SilverView';
 import GoldView from './datasets/components/GoldView';
 import LoyaltyUploadModal from './datasets/loyalty/LoyaltyUploadModal';
+import SkuUploadModal from './datasets/sku/SkuUploadModal';
 import UploadBatchModal from './datasets/components/UploadBatchModal';
 import { UserAccount } from './auth/types';
 import { authService } from './auth/authService';
@@ -79,6 +80,12 @@ export default function App() {
       </main>
       {getActiveDatasetId() === 'loyalty-sales' ? (
         <LoyaltyUploadModal 
+          isOpen={isUploadModalOpen} 
+          onClose={() => setIsUploadModalOpen(false)} 
+          onSuccess={handleUploadSuccess}
+        />
+      ) : getActiveDatasetId() === 'sku-hierarchy' ? (
+        <SkuUploadModal 
           isOpen={isUploadModalOpen} 
           onClose={() => setIsUploadModalOpen(false)} 
           onSuccess={handleUploadSuccess}
