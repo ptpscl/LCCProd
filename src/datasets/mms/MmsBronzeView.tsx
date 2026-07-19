@@ -175,7 +175,7 @@ export default function MmsBronzeView({ refreshTrigger }: MmsBronzeViewProps) {
         <MmsDataView onBack={() => setViewMode('batches')} showToast={showToast} />
       ) : (
         <>
-          <div className="flex justify-between items-center gap-4 mb-[-8px]">
+          <div className="flex justify-between items-center gap-4">
             <h2 className="text-[18px] font-semibold text-text-main">Bronze MMS Data</h2>
             <button
               type="button"
