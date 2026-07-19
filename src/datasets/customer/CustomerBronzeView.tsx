@@ -13,7 +13,7 @@ import { EXPECTED_CUSTOMER_COLUMNS } from './customerSchema';
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 const DESCRIPTIONS: Record<string, string> = {
-  'CUSTOMER NUMBER': 'Unique loyalty customer identifier', GENDER: 'Recorded customer gender', BIRTHDAY: 'Birth date in YYYYMMDD format', AGE: 'Customer age in years', CITY: 'Registered city', PROVINCE: 'Registered province', 'EXPIRY DATE': 'Membership expiration date', 'MEMBER LOCATION': 'Membership registration branch', 'APPLICATION DATE': 'Membership application date', 'MEMBER SINCE': 'Membership activation date', 'LAST VISIT': 'Most recent recorded visit', 'FREQUENCY OF VISIT': 'Recorded visit frequency', 'LAST VISITED STORE': 'Most recently visited store code',
+  'CUSTOMER NUMBER': 'Loyalty customer identifier', GENDER: 'Raw recorded customer gender', BIRTHDAY: 'Raw recorded birth date', AGE: 'Raw recorded customer age', CITY: 'Raw registered city', PROVINCE: 'Raw registered province', 'EXPIRY DATE': 'Raw membership expiration date', 'MEMBER LOCATION': 'Raw membership registration branch', 'APPLICATION DATE': 'Raw membership application date', 'MEMBER SINCE': 'Raw membership activation date', 'LAST VISIT': 'Raw most recently recorded visit date', 'FREQUENCY OF VISIT': 'Raw recorded visit frequency', 'LAST VISITED STORE': 'Raw most recently visited store code',
 };
 
 export default function CustomerBronzeView({ refreshTrigger }: { refreshTrigger: number }) {

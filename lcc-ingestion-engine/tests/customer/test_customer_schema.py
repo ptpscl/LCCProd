@@ -33,8 +33,8 @@ class CustomerSchemaTests(unittest.TestCase):
         frame.columns = [column.lower() for column in frame.columns]
         result = validate_and_cast_customer_frame(frame)
         self.assertEqual(result.columns.tolist(), EXPECTED_COLUMNS)
-        self.assertEqual(result.iloc[0]["BIRTHDAY"], "1996-02-29")
-        self.assertEqual(result.iloc[0]["AGE"], 30)
+        self.assertEqual(result.iloc[0]["BIRTHDAY"], "19960229")
+        self.assertEqual(result.iloc[0]["AGE"], "30")
 
     def test_rejects_schema_mismatch(self):
         row = valid_row()
@@ -43,16 +43,21 @@ class CustomerSchemaTests(unittest.TestCase):
         with self.assertRaisesRegex(CustomerValidationError, "Schema mismatch"):
             validate_and_cast_customer_frame(pd.DataFrame([row]))
 
-    def test_rejects_invalid_dates_and_numbers(self):
-        invalid_date = valid_row()
-        invalid_date["BIRTHDAY"] = "20230229"
-        with self.assertRaisesRegex(CustomerValidationError, "BIRTHDAY"):
-            validate_and_cast_customer_frame(pd.DataFrame([invalid_date]))
+    def test_preserves_raw_date_values(self):
+        raw_dates = valid_row()
+        raw_dates["BIRTHDAY"] = "10112"
+        raw_dates["LAST VISIT"] = "not-normalized-yet"
+        result = validate_and_cast_customer_frame(pd.DataFrame([raw_dates]))
+        self.assertEqual(result.iloc[0]["BIRTHDAY"], "10112")
+        self.assertEqual(result.iloc[0]["LAST VISIT"], "not-normalized-yet")
 
-        invalid_age = valid_row()
-        invalid_age["AGE"] = "2.5"
-        with self.assertRaisesRegex(CustomerValidationError, "AGE"):
-            validate_and_cast_customer_frame(pd.DataFrame([invalid_age]))
+    def test_preserves_raw_numeric_values_as_text(self):
+        raw_numbers = valid_row()
+        raw_numbers["AGE"] = "unknown"
+        raw_numbers["FREQUENCY OF VISIT"] = "2.5"
+        result = validate_and_cast_customer_frame(pd.DataFrame([raw_numbers]))
+        self.assertEqual(result.iloc[0]["AGE"], "unknown")
+        self.assertEqual(result.iloc[0]["FREQUENCY OF VISIT"], "2.5")
 
     def test_rejects_missing_customer_numbers(self):
         missing = valid_row()

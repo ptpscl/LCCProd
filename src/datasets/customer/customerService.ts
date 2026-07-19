@@ -22,8 +22,6 @@ export interface CustomerFilters {
   province?: string;
   member_location?: string;
   last_visited_store?: string;
-  last_visit_from?: string;
-  last_visit_to?: string;
   page?: number;
   page_size?: number;
 }

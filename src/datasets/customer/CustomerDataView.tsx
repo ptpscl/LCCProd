@@ -39,8 +39,6 @@ export default function CustomerDataView({ onBack, showToast }: Props) {
   const [province, setProvince] = useState('');
   const [memberLocation, setMemberLocation] = useState('');
   const [lastVisitedStore, setLastVisitedStore] = useState('');
-  const [lastVisitFrom, setLastVisitFrom] = useState('');
-  const [lastVisitTo, setLastVisitTo] = useState('');
   const pageSize = 20;
 
   const filters = (targetPage = page): CustomerFilters => ({
@@ -49,8 +47,6 @@ export default function CustomerDataView({ onBack, showToast }: Props) {
     province,
     member_location: memberLocation,
     last_visited_store: lastVisitedStore,
-    last_visit_from: lastVisitFrom,
-    last_visit_to: lastVisitTo,
     page: targetPage,
     page_size: pageSize,
   });
@@ -82,8 +78,6 @@ export default function CustomerDataView({ onBack, showToast }: Props) {
     setProvince('');
     setMemberLocation('');
     setLastVisitedStore('');
-    setLastVisitFrom('');
-    setLastVisitTo('');
     void loadRows(1, { page: 1, page_size: pageSize });
   };
 
@@ -108,14 +102,12 @@ export default function CustomerDataView({ onBack, showToast }: Props) {
     </div>
 
     <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-4 space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <FilterInput label="Customer Number" value={customerNumber} onChange={setCustomerNumber} />
         <FilterInput label="City" value={city} onChange={setCity} />
         <FilterInput label="Province" value={province} onChange={setProvince} />
         <FilterInput label="Member Location" value={memberLocation} onChange={setMemberLocation} />
         <FilterInput label="Last Visited Store" value={lastVisitedStore} onChange={setLastVisitedStore} />
-        <FilterInput label="Last Visit From" value={lastVisitFrom} onChange={setLastVisitFrom} type="date" />
-        <FilterInput label="Last Visit To" value={lastVisitTo} onChange={setLastVisitTo} type="date" />
         <div className="flex gap-2 items-end"><button onClick={() => void loadRows(1)} className="flex-1 h-9 rounded-[6px] text-[13px] font-medium bg-[#0054A6] text-white hover:bg-[#004385] flex items-center justify-center"><Search className="w-4 h-4 mr-2" />Apply</button><button onClick={clearFilters} title="Clear filters" className="w-9 h-9 border border-border-subtle rounded-[6px] flex items-center justify-center hover:bg-surface-bg"><X className="w-4 h-4" /></button></div>
       </div>
     </div>

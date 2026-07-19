@@ -22,8 +22,6 @@ def _apply_filters(
     province: Optional[str],
     member_location: Optional[str],
     last_visited_store: Optional[str],
-    last_visit_from: Optional[str],
-    last_visit_to: Optional[str],
 ):
     if customer_number:
         query = query.eq("CUSTOMER NUMBER", customer_number)
@@ -35,10 +33,6 @@ def _apply_filters(
         query = query.eq("MEMBER LOCATION", member_location)
     if last_visited_store:
         query = query.eq("LAST VISITED STORE", last_visited_store)
-    if last_visit_from:
-        query = query.gte("LAST VISIT", last_visit_from)
-    if last_visit_to:
-        query = query.lte("LAST VISIT", last_visit_to)
     return query
 
 
@@ -71,15 +65,12 @@ def get_bronze_rows(
     province: Optional[str] = None,
     member_location: Optional[str] = None,
     last_visited_store: Optional[str] = None,
-    last_visit_from: Optional[str] = None,
-    last_visit_to: Optional[str] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ):
     client = get_client()
     filters = (
         customer_number, city, province, member_location, last_visited_store,
-        last_visit_from, last_visit_to,
     )
     try:
         count_query = _apply_filters(
@@ -111,13 +102,10 @@ def export_bronze_rows(
     province: Optional[str] = None,
     member_location: Optional[str] = None,
     last_visited_store: Optional[str] = None,
-    last_visit_from: Optional[str] = None,
-    last_visit_to: Optional[str] = None,
 ):
     client = get_client()
     filters = (
         customer_number, city, province, member_location, last_visited_store,
-        last_visit_from, last_visit_to,
     )
     try:
         count_query = _apply_filters(

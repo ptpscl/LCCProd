@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-import re
-
 import pandas as pd
 
 EXPECTED_COLUMNS = [
@@ -20,17 +17,6 @@ EXPECTED_COLUMNS = [
     "FREQUENCY OF VISIT",
     "LAST VISITED STORE",
 ]
-
-DATE_COLUMNS = [
-    "BIRTHDAY",
-    "EXPIRY DATE",
-    "APPLICATION DATE",
-    "MEMBER SINCE",
-    "LAST VISIT",
-]
-
-INTEGER_COLUMNS = ["AGE", "FREQUENCY OF VISIT"]
-
 
 class CustomerValidationError(ValueError):
     """Raised when an uploaded Customer file violates the domain schema."""
@@ -67,47 +53,8 @@ def validate_and_cast_customer_frame(frame: pd.DataFrame) -> pd.DataFrame:
 
     clean["CUSTOMER NUMBER"] = customer_numbers.str.upper()
 
-    for column in DATE_COLUMNS:
-        cast_values: list[str | None] = []
-        invalid_values: list[str] = []
-        for raw_value in clean[column]:
-            if _is_blank(raw_value):
-                cast_values.append(None)
-                continue
-            value = str(raw_value).strip()
-            try:
-                parsed = datetime.strptime(value, "%Y%m%d").date()
-                cast_values.append(parsed.isoformat())
-            except ValueError:
-                invalid_values.append(value)
-                cast_values.append(None)
-        if invalid_values:
-            raise CustomerValidationError(
-                f"{column} must contain valid YYYYMMDD dates; invalid values: {invalid_values[:5]}"
-            )
-        clean[column] = pd.Series(cast_values, index=clean.index, dtype=object)
-
-    for column in INTEGER_COLUMNS:
-        cast_values: list[int | None] = []
-        invalid_values: list[str] = []
-        for raw_value in clean[column]:
-            if _is_blank(raw_value):
-                cast_values.append(None)
-                continue
-            value = str(raw_value).strip()
-            if not re.fullmatch(r"\d+", value):
-                invalid_values.append(value)
-                cast_values.append(None)
-            else:
-                cast_values.append(int(value))
-        if invalid_values:
-            raise CustomerValidationError(
-                f"{column} must contain non-negative whole numbers; invalid values: {invalid_values[:5]}"
-            )
-        clean[column] = pd.Series(cast_values, index=clean.index, dtype=object)
-
     for column in EXPECTED_COLUMNS:
-        if column in DATE_COLUMNS or column in INTEGER_COLUMNS or column == "CUSTOMER NUMBER":
+        if column == "CUSTOMER NUMBER":
             continue
         clean[column] = clean[column].map(
             lambda value: None if _is_blank(value) else str(value).strip()
