@@ -53,11 +53,12 @@ def ingest_batch(batch_id: str) -> dict:
         update_batch(batch_id, None, 'ingestion_failed')
         raise SchemaMismatchError(f"Schema mismatch. Missing columns: {missing_cols}")
 
-    # DUPLICATE SKU GUARD (within file): SKU CODE is the natural key
-    dupes = int(df["SKU CODE"].dropna().duplicated().sum())
-    if dupes > 0:
-        logger.warning(f"Batch {batch_id}: dropping {dupes} duplicate SKU CODE rows (keeping first)")
-        df = df.drop_duplicates(subset=["SKU CODE"], keep="first")
+    # WITHIN-FILE DUPLICATE GUARD: exact duplicates across all columns
+    before = len(df)
+    df = df.drop_duplicates(subset=EXPECTED_COLUMNS, keep="first")
+    within_file_dupes = before - len(df)
+    if within_file_dupes > 0:
+        logger.warning(f"Batch {batch_id}: dropped {within_file_dupes} exact duplicate rows within the file")
 
     df = df[EXPECTED_COLUMNS]
     df.columns = [c.replace(' ', '_') for c in df.columns]
@@ -87,9 +88,11 @@ def ingest_batch(batch_id: str) -> dict:
         rows_inserted = 0
         for i in range(0, total_rows, chunk_size):
             chunk = records[i:i + chunk_size]
-            client.table('bronze_sku_hierarchy').insert(chunk).execute()
-            rows_inserted += len(chunk)
-            logger.info(f"Inserted chunk {i // chunk_size + 1} for batch {batch_id}: {rows_inserted} rows total")
+            resp = client.table('bronze_sku_hierarchy').upsert(
+                chunk, on_conflict='row_hash', ignore_duplicates=True
+            ).execute()
+            rows_inserted += len(resp.data or [])
+            logger.info(f"Chunk {i // chunk_size + 1} for batch {batch_id}: {rows_inserted} new rows so far")
 
     except Exception as e:
         logger.error(f"Database insertion failed for batch {batch_id}: {e}. Rolling back partial inserts.")
@@ -102,12 +105,14 @@ def ingest_batch(batch_id: str) -> dict:
         update_batch(batch_id, None, 'ingestion_failed')
         raise RuntimeError(f"Database insertion failed: {e}")
 
-    logger.info(f"Updating batch {batch_id} status to ingested")
-    update_batch(batch_id, total_rows, 'ingested')
+    duplicates_skipped = total_rows - rows_inserted
+    logger.info(f"Batch {batch_id}: {rows_inserted} new rows, {duplicates_skipped} duplicates skipped")
+    update_batch(batch_id, rows_inserted, 'ingested')
 
     return {
         "batch_id": batch_id,
-        "rows_ingested": total_rows,
-        "status": "ingested",
-        "duplicates_dropped": dupes
+        "rows_ingested": rows_inserted,
+        "duplicates_skipped": duplicates_skipped,
+        "within_file_duplicates_dropped": within_file_dupes,
+        "status": "ingested"
     }
