@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import codecs
 import io
+from pathlib import Path
+from typing import BinaryIO
 
 import pandas as pd
 
@@ -25,18 +27,28 @@ class CustomerValidationError(ValueError):
     """Raised when an uploaded Customer file violates the domain schema."""
 
 
-def detect_customer_encoding(file_bytes: bytes) -> str:
-    """Validate bytes incrementally and return the first supported encoding."""
+def _open_binary_source(source: bytes | str | Path) -> tuple[BinaryIO, bool]:
+    if isinstance(source, bytes):
+        return io.BytesIO(source), True
+    return Path(source).open("rb"), True
+
+
+def detect_customer_encoding(source: bytes | str | Path) -> str:
+    """Validate a byte buffer or file incrementally and detect its encoding."""
     decoding_errors: list[str] = []
     for encoding in ("utf-8-sig", "cp1252", "latin-1"):
+        stream, should_close = _open_binary_source(source)
         try:
             decoder = codecs.getincrementaldecoder(encoding)(errors="strict")
-            for start in range(0, len(file_bytes), 1024 * 1024):
-                decoder.decode(file_bytes[start:start + 1024 * 1024], final=False)
+            while chunk := stream.read(1024 * 1024):
+                decoder.decode(chunk, final=False)
             decoder.decode(b"", final=True)
             return encoding
         except UnicodeDecodeError as exc:
             decoding_errors.append(f"{encoding}: {exc}")
+        finally:
+            if should_close:
+                stream.close()
 
     raise CustomerValidationError(
         "Customer file encoding is unsupported. " + " | ".join(decoding_errors)
@@ -56,11 +68,12 @@ def read_customer_csv(file_bytes: bytes) -> tuple[pd.DataFrame, str]:
     return frame, encoding
 
 
-def iter_customer_csv_chunks(file_bytes: bytes, chunk_size: int = 5_000):
+def iter_customer_csv_chunks(source: bytes | str | Path, chunk_size: int = 5_000):
     """Return a bounded-memory Customer CSV reader and detected encoding."""
-    encoding = detect_customer_encoding(file_bytes)
+    encoding = detect_customer_encoding(source)
+    csv_source = io.BytesIO(source) if isinstance(source, bytes) else source
     reader = pd.read_csv(
-        io.BytesIO(file_bytes),
+        csv_source,
         sep=None,
         engine="python",
         dtype=str,

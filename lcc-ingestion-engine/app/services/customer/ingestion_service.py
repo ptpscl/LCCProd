@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
+import tempfile
+from pathlib import Path
 
 import pandas as pd
 
@@ -14,7 +17,7 @@ from app.services.customer.customer_schema import (
 from app.services.customer.supabase_service import (
     count_rows_for_batch,
     delete_rows_for_batch,
-    download_batch_file,
+    download_batch_file_to_path,
     get_batch,
     insert_customer_rows,
     update_batch,
@@ -55,47 +58,50 @@ def ingest_batch(batch_id: str) -> dict:
         raise CustomerValidationError("Batch has no file_path")
 
     update_batch(batch_id, "processing")
-    try:
-        file_bytes = download_batch_file(file_path)
-    except Exception as exc:
-        update_batch(batch_id, "ingestion_failed")
-        raise RuntimeError(f"Customer file download failed: {exc}") from exc
-
     rows_inserted = 0
-    seen_row_hashes: set[int] = set()
     try:
-        chunks, detected_encoding = iter_customer_csv_chunks(file_bytes)
-        logger.info(
-            "Processing Customer batch %s using %s encoding",
-            batch_id,
-            detected_encoding,
-        )
-        for raw_frame in chunks:
-            clean_frame = validate_and_cast_customer_frame(raw_frame)
-            row_hashes = pd.util.hash_pandas_object(
-                clean_frame[EXPECTED_COLUMNS],
-                index=False,
-            ).astype("uint64").tolist()
-            cross_chunk_duplicates = [
-                int(clean_frame.index[position]) + 2
-                for position, row_hash in enumerate(row_hashes)
-                if int(row_hash) in seen_row_hashes
-            ]
-            if cross_chunk_duplicates:
-                raise CustomerValidationError(
-                    "Fully identical Customer rows are not allowed; "
-                    f"duplicate CSV rows: {cross_chunk_duplicates[:10]}"
+        with tempfile.TemporaryDirectory(prefix="customer-ingest-") as temp_dir:
+            csv_path = Path(temp_dir) / "source.csv"
+            hashes_path = Path(temp_dir) / "row-hashes.sqlite3"
+            download_batch_file_to_path(file_path, csv_path)
+
+            with sqlite3.connect(hashes_path) as hash_db:
+                hash_db.execute("CREATE TABLE row_hashes (hash TEXT PRIMARY KEY)")
+                chunks, detected_encoding = iter_customer_csv_chunks(csv_path)
+                logger.info(
+                    "Processing Customer batch %s using %s encoding",
+                    batch_id,
+                    detected_encoding,
                 )
-            seen_row_hashes.update(int(row_hash) for row_hash in row_hashes)
-            clean_frame["source_batch_id"] = batch_id
-            records = to_json_safe_records(clean_frame)
-            insert_customer_rows(records)
-            rows_inserted += len(records)
-            logger.info(
-                "Inserted %s Customer rows for batch %s",
-                rows_inserted,
-                batch_id,
-            )
+                for raw_frame in chunks:
+                    clean_frame = validate_and_cast_customer_frame(raw_frame)
+                    row_hashes = pd.util.hash_pandas_object(
+                        clean_frame[EXPECTED_COLUMNS],
+                        index=False,
+                    ).astype("uint64").tolist()
+                    for position, row_hash in enumerate(row_hashes):
+                        try:
+                            hash_db.execute(
+                                "INSERT INTO row_hashes(hash) VALUES (?)",
+                                (f"{int(row_hash):016x}",),
+                            )
+                        except sqlite3.IntegrityError as exc:
+                            csv_row = int(clean_frame.index[position]) + 2
+                            raise CustomerValidationError(
+                                "Fully identical Customer rows are not allowed; "
+                                f"duplicate CSV row: {csv_row}"
+                            ) from exc
+                    hash_db.commit()
+
+                    clean_frame["source_batch_id"] = batch_id
+                    records = to_json_safe_records(clean_frame)
+                    insert_customer_rows(records)
+                    rows_inserted += len(records)
+                    logger.info(
+                        "Inserted %s Customer rows for batch %s",
+                        rows_inserted,
+                        batch_id,
+                    )
         if rows_inserted == 0:
             raise CustomerValidationError("Customer file contains no data rows")
     except CustomerValidationError:

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import logging
+from pathlib import Path
+
+import httpx
 
 from supabase import Client, create_client
 
@@ -52,6 +55,25 @@ def download_batch_file(file_path: str) -> bytes:
         return _client.storage.from_("bronze-raw").download(file_path)
     except Exception as exc:
         raise RuntimeError(f"Could not download {file_path} from bronze-raw") from exc
+
+
+def download_batch_file_to_path(file_path: str, destination: str | Path) -> None:
+    """Stream a private Storage object to disk without buffering it in RAM."""
+    try:
+        signed = _client.storage.from_("bronze-raw").create_signed_url(file_path, 3600)
+        signed_url = signed.get("signedURL") or signed.get("signedUrl") or signed.get("signed_url")
+        if not signed_url:
+            raise RuntimeError("Supabase did not return a signed URL")
+        if signed_url.startswith("/"):
+            signed_url = f"{SUPABASE_URL.rstrip('/')}{signed_url}"
+
+        with httpx.stream("GET", signed_url, follow_redirects=True, timeout=120.0) as response:
+            response.raise_for_status()
+            with Path(destination).open("wb") as output:
+                for chunk in response.iter_bytes(chunk_size=1024 * 1024):
+                    output.write(chunk)
+    except Exception as exc:
+        raise RuntimeError(f"Could not stream {file_path} from bronze-raw") from exc
 
 
 def count_rows_for_batch(batch_id: str) -> int:

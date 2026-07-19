@@ -1,5 +1,7 @@
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import pandas as pd
 
@@ -121,6 +123,22 @@ class CustomerSchemaTests(unittest.TestCase):
 
         self.assertEqual(encoding, "utf-8-sig")
         self.assertEqual(chunk_sizes, [2, 2, 1])
+
+    def test_reads_customer_file_from_disk_in_bounded_chunks(self):
+        header = ",".join(EXPECTED_COLUMNS)
+        row = valid_row()
+        file_bytes = (
+            header + "\n" + ",".join(row[column] for column in EXPECTED_COLUMNS)
+        ).encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            csv_path = Path(temp_dir) / "customers.csv"
+            csv_path.write_bytes(file_bytes)
+            chunks, encoding = iter_customer_csv_chunks(csv_path, chunk_size=2)
+            chunk_sizes = [len(chunk) for chunk in chunks]
+
+        self.assertEqual(encoding, "utf-8-sig")
+        self.assertEqual(chunk_sizes, [1])
 
 
 if __name__ == "__main__":
