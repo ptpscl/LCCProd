@@ -11,6 +11,7 @@ import GoldView from './datasets/components/GoldView';
 import LoyaltyUploadModal from './datasets/loyalty/LoyaltyUploadModal';
 import SkuUploadModal from './datasets/sku/SkuUploadModal';
 import CustomerUploadModal from './datasets/customer/CustomerUploadModal';
+import MmsUploadModal from './datasets/mms/MmsUploadModal';
 import UploadBatchModal from './datasets/components/UploadBatchModal';
 import { UserAccount } from './auth/types';
 import { authService } from './auth/authService';
@@ -95,6 +96,12 @@ export default function App() {
         <SkuUploadModal 
           isOpen={isUploadModalOpen} 
           onClose={() => setIsUploadModalOpen(false)} 
+          onSuccess={handleUploadSuccess}
+        />
+      ) : getActiveDatasetId() === 'mms-sales' ? (
+        <MmsUploadModal
+          isOpen={isUploadModalOpen}
+          onClose={() => setIsUploadModalOpen(false)}
           onSuccess={handleUploadSuccess}
         />
       ) : (
