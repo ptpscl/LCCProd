@@ -51,3 +51,37 @@ ALTER TABLE bronze_sku_hierarchy ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all operations during pilot" ON bronze_sku_hierarchy FOR ALL USING (true) WITH CHECK (true);
 
 NOTIFY pgrst, 'reload schema';
+
+-- ==========================================
+-- Migration 2: row_hash fingerprint for exact-duplicate detection
+-- (already executed in Supabase SQL Editor)
+-- ==========================================
+
+ALTER TABLE bronze_sku_hierarchy
+  ADD COLUMN row_hash TEXT GENERATED ALWAYS AS (
+    md5(
+      coalesce("SKU_CODE",'')             || '|' ||
+      coalesce("SKU_DESCRIPTION",'')      || '|' ||
+      coalesce("DIVISION",'')             || '|' ||
+      coalesce("DEPARTMENT",'')           || '|' ||
+      coalesce("CATEGORY",'')             || '|' ||
+      coalesce("CLASS",'')                || '|' ||
+      coalesce("BRAND",'')                || '|' ||
+      coalesce("STANDARD_PACK",'')        || '|' ||
+      coalesce("PACK_TYPE",'')            || '|' ||
+      coalesce("BUY_UNIT_OF_MEASURE",'')  || '|' ||
+      coalesce("SELL_UNIT_OF_MEASURE",'') || '|' ||
+      coalesce("UNIT_COST",'')            || '|' ||
+      coalesce("WEIGTH",'')               || '|' ||
+      coalesce("HEIGHT",'')               || '|' ||
+      coalesce("LENGTH",'')               || '|' ||
+      coalesce("WIDTH",'')                || '|' ||
+      coalesce("CUBE",'')                 || '|' ||
+      coalesce("VENDOR_CODE",'')          || '|' ||
+      coalesce("VENDOR_DESCRIPTION",'')
+    )
+  ) STORED;
+
+CREATE UNIQUE INDEX uq_bronze_sku_hierarchy_row_hash ON bronze_sku_hierarchy (row_hash);
+
+NOTIFY pgrst, 'reload schema';

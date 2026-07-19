@@ -64,8 +64,14 @@ export default function SkuBronzeView({ refreshTrigger }: { refreshTrigger: numb
     try {
       const res = await ingestBatch(batchId);
       if (res.status === 'ingested') {
-        const dupNote = res.duplicates_dropped > 0 ? ` (${res.duplicates_dropped} duplicate SKUs dropped)` : '';
-        showToast(`Ingested ${res.rows_ingested.toLocaleString()} SKU rows${dupNote}`, 'success');
+        const skipped = res.duplicates_skipped || 0;
+        if (res.rows_ingested === 0 && skipped > 0) {
+          showToast(`No new rows: all ${skipped.toLocaleString()} rows are exact duplicates of existing data`, 'warning');
+        } else if (skipped > 0) {
+          showToast(`Ingested ${res.rows_ingested.toLocaleString()} new rows — ${skipped.toLocaleString()} duplicate rows detected and skipped`, 'warning');
+        } else {
+          showToast(`Ingested ${res.rows_ingested.toLocaleString()} SKU rows`, 'success');
+        }
       } else if (res.status === 'already_ingested') {
         showToast('Already ingested.', 'info');
       }
