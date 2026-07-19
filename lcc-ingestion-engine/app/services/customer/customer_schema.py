@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+
 import pandas as pd
 
 EXPECTED_COLUMNS = [
@@ -20,6 +22,27 @@ EXPECTED_COLUMNS = [
 
 class CustomerValidationError(ValueError):
     """Raised when an uploaded Customer file violates the domain schema."""
+
+
+def read_customer_csv(file_bytes: bytes) -> tuple[pd.DataFrame, str]:
+    """Read CSV/TSV bytes using common source-system encodings."""
+    decoding_errors: list[str] = []
+    for encoding in ("utf-8-sig", "cp1252", "latin-1"):
+        try:
+            frame = pd.read_csv(
+                io.BytesIO(file_bytes),
+                sep=None,
+                engine="python",
+                dtype=str,
+                encoding=encoding,
+            )
+            return frame, encoding
+        except UnicodeDecodeError as exc:
+            decoding_errors.append(f"{encoding}: {exc}")
+
+    raise CustomerValidationError(
+        "Customer file encoding is unsupported. " + " | ".join(decoding_errors)
+    )
 
 
 def _is_blank(value: object) -> bool:

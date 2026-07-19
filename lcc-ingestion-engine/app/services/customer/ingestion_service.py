@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import io
 import logging
-
-import pandas as pd
 
 from app.services.customer.customer_schema import (
     CustomerValidationError,
+    read_customer_csv,
     to_json_safe_records,
     validate_and_cast_customer_frame,
 )
@@ -54,7 +52,12 @@ def ingest_batch(batch_id: str) -> dict:
         raise RuntimeError(f"Customer file download failed: {exc}") from exc
 
     try:
-        raw_frame = pd.read_csv(io.BytesIO(file_bytes), sep=None, engine="python", dtype=str)
+        raw_frame, detected_encoding = read_customer_csv(file_bytes)
+        logger.info(
+            "Parsed Customer batch %s using %s encoding",
+            batch_id,
+            detected_encoding,
+        )
         clean_frame = validate_and_cast_customer_frame(raw_frame)
         clean_frame["source_batch_id"] = batch_id
         records = to_json_safe_records(clean_frame)

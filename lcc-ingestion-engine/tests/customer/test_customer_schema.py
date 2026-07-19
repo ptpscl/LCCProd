@@ -6,6 +6,7 @@ import pandas as pd
 from app.services.customer.customer_schema import (
     CustomerValidationError,
     EXPECTED_COLUMNS,
+    read_customer_csv,
     to_json_safe_records,
     validate_and_cast_customer_frame,
 )
@@ -93,6 +94,17 @@ class CustomerSchemaTests(unittest.TestCase):
         self.assertIsNone(records[0]["PROVINCE"])
         self.assertIsNone(records[0]["EXPIRY DATE"])
         json.dumps(records, allow_nan=False)
+
+    def test_reads_windows_1252_customer_csv(self):
+        header = ",".join(EXPECTED_COLUMNS)
+        row = valid_row()
+        row["CITY"] = "PEÑA CITY"
+        csv_text = header + "\n" + ",".join(row[column] for column in EXPECTED_COLUMNS)
+
+        frame, encoding = read_customer_csv(csv_text.encode("cp1252"))
+
+        self.assertEqual(encoding, "cp1252")
+        self.assertEqual(frame.iloc[0]["CITY"], "PEÑA CITY")
 
 
 if __name__ == "__main__":
