@@ -1,3 +1,4 @@
+import json
 import unittest
 
 import pandas as pd
@@ -5,6 +6,7 @@ import pandas as pd
 from app.services.customer.customer_schema import (
     CustomerValidationError,
     EXPECTED_COLUMNS,
+    to_json_safe_records,
     validate_and_cast_customer_frame,
 )
 
@@ -79,6 +81,18 @@ class CustomerSchemaTests(unittest.TestCase):
         second = valid_row()
         with self.assertRaisesRegex(CustomerValidationError, "Fully identical"):
             validate_and_cast_customer_frame(pd.DataFrame([first, second]))
+
+    def test_converts_blank_cells_to_json_null(self):
+        row = valid_row()
+        row["PROVINCE"] = None
+        row["EXPIRY DATE"] = ""
+        frame = validate_and_cast_customer_frame(pd.DataFrame([row]))
+        frame["source_batch_id"] = "batch-1"
+        records = to_json_safe_records(frame)
+
+        self.assertIsNone(records[0]["PROVINCE"])
+        self.assertIsNone(records[0]["EXPIRY DATE"])
+        json.dumps(records, allow_nan=False)
 
 
 if __name__ == "__main__":

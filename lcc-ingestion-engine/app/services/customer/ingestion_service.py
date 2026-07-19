@@ -7,6 +7,7 @@ import pandas as pd
 
 from app.services.customer.customer_schema import (
     CustomerValidationError,
+    to_json_safe_records,
     validate_and_cast_customer_frame,
 )
 from app.services.customer.supabase_service import (
@@ -56,7 +57,7 @@ def ingest_batch(batch_id: str) -> dict:
         raw_frame = pd.read_csv(io.BytesIO(file_bytes), sep=None, engine="python", dtype=str)
         clean_frame = validate_and_cast_customer_frame(raw_frame)
         clean_frame["source_batch_id"] = batch_id
-        records = clean_frame.to_dict(orient="records")
+        records = to_json_safe_records(clean_frame)
     except CustomerValidationError:
         update_batch(batch_id, "validation_failed")
         raise

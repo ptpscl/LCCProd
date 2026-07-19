@@ -69,3 +69,19 @@ def validate_and_cast_customer_frame(frame: pd.DataFrame) -> pd.DataFrame:
         )
 
     return clean
+
+
+def to_json_safe_records(frame: pd.DataFrame) -> list[dict]:
+    """Convert a validated frame to records without NaN/NaT/NumPy scalars."""
+    records: list[dict] = []
+    for raw_record in frame.to_dict(orient="records"):
+        record: dict = {}
+        for key, value in raw_record.items():
+            if pd.isna(value):
+                record[key] = None
+            elif hasattr(value, "item"):
+                record[key] = value.item()
+            else:
+                record[key] = value
+        records.append(record)
+    return records
