@@ -12,6 +12,7 @@ interface TopbarProps {
 
 const viewTitles: Record<string, string> = {
   home: 'Home',
+  jobs: 'Jobs',
   history: 'History',
   'access-requests': 'Access Requests'
 };

@@ -5,6 +5,7 @@ import AuthFlow from './auth/AuthFlow';
 import AccessRequestsView from './governance/components/AccessRequestsView';
 import HomeView from './components/views/HomeView';
 import HistoryView from './components/views/HistoryView';
+import JobsView from './components/views/JobsView';
 import BronzeView from './datasets/components/BronzeView';
 import SilverView from './datasets/components/SilverView';
 import GoldView from './datasets/components/GoldView';
@@ -48,6 +49,7 @@ export default function App() {
 
   const renderContent = () => {
     if (currentView === 'home') return <HomeView />;
+    if (currentView === 'jobs') return <JobsView />;
     if (currentView === 'history') return <HistoryView />;
     if (currentView === 'access-requests') return <AccessRequestsView />;
 

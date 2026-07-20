@@ -1,4 +1,4 @@
-import { Home, Layers, History, Users, LogOut, ChevronDown, ChevronRight } from 'lucide-react';
+import { Home, Layers, History, Users, LogOut, ChevronDown, ChevronRight, Workflow } from 'lucide-react';
 import { ViewType } from '../types';
 import { useAccess } from '../governance/useAccess';
 import { governanceService } from '../governance/governanceService';
@@ -99,7 +99,7 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-2">
-        <div className="mb-4">
+        <div>
           <button
             onClick={() => onViewChange('home')}
             className={`flex items-center w-full px-6 py-3 cursor-pointer transition-colors ${
@@ -110,6 +110,20 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
           >
             <Home className="w-5 h-5 mr-3" />
             <span className={`text-[14px] ${currentView === 'home' ? 'font-semibold' : 'font-medium'}`}>Home</span>
+          </button>
+        </div>
+
+        <div className="mb-4">
+          <button
+            onClick={() => onViewChange('jobs')}
+            className={`flex items-center w-full px-6 py-3 cursor-pointer transition-colors ${
+              currentView === 'jobs'
+                ? 'bg-brand-50 text-brand-600 border-l-[3px] border-brand-600'
+                : 'text-text-muted hover:bg-surface-bg border-l-[3px] border-transparent'
+            }`}
+          >
+            <Workflow className="w-5 h-5 mr-3" />
+            <span className={`text-[14px] ${currentView === 'jobs' ? 'font-semibold' : 'font-medium'}`}>Jobs</span>
           </button>
         </div>
 
