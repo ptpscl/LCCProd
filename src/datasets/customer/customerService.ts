@@ -26,6 +26,34 @@ export interface CustomerFilters {
   page_size?: number;
 }
 
+export interface CustomerSilverRun {
+  id: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed';
+  source_row_count: number | null;
+  processed_row_count: number | null;
+  clean_row_count: number | null;
+  flagged_row_count: number | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface CustomerSilverStats {
+  total_rows: number;
+  clean_rows: number;
+  flagged_rows: number;
+  latest_run: CustomerSilverRun | null;
+}
+
+export interface CustomerSilverFilters {
+  validation_status?: 'clean' | 'flagged' | 'resolved' | '';
+  customer_number?: string;
+  quality_issue?: string;
+  page?: number;
+  page_size?: number;
+}
+
 async function apiError(response: Response, fallback: string): Promise<string> {
   try {
     const body = await response.json();
@@ -117,4 +145,28 @@ export async function exportCustomerRows(filters: CustomerFilters): Promise<void
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+export async function startCustomerSilverProcessing(): Promise<CustomerSilverRun> {
+  const response = await fetch(`${CUSTOMER_API_URL}/silver/process`, { method: 'POST' });
+  if (!response.ok) throw new Error(await apiError(response, 'Failed to start Customer Silver processing'));
+  return response.json();
+}
+
+export async function getCustomerSilverRun(runId: string): Promise<CustomerSilverRun> {
+  const response = await fetch(`${CUSTOMER_API_URL}/silver/runs/${runId}`);
+  if (!response.ok) throw new Error(await apiError(response, 'Failed to load Customer Silver run'));
+  return response.json();
+}
+
+export async function getCustomerSilverStats(): Promise<CustomerSilverStats> {
+  const response = await fetch(`${CUSTOMER_API_URL}/silver/stats`);
+  if (!response.ok) throw new Error(await apiError(response, 'Failed to load Customer Silver statistics'));
+  return response.json();
+}
+
+export async function getCustomerSilverRows(filters: CustomerSilverFilters) {
+  const response = await fetch(`${CUSTOMER_API_URL}/silver/rows?${queryString(filters)}`);
+  if (!response.ok) throw new Error(await apiError(response, 'Failed to load Customer Silver rows'));
+  return response.json();
 }

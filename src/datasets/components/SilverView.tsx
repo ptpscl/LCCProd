@@ -1,5 +1,8 @@
 import SkuSilverView from '../sku/SkuSilverView';
+import CustomerSilverView from '../customer/CustomerSilverView';
+
 export default function SilverView({ datasetId }: { datasetId: string }) {
+  if (datasetId === 'customer-database') return <CustomerSilverView />;
   if (datasetId === 'sku-hierarchy') {
     return <SkuSilverView />;
   }
