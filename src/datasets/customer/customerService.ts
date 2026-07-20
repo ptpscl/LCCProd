@@ -43,6 +43,7 @@ export interface CustomerSilverStats {
   total_rows: number;
   clean_rows: number;
   flagged_rows: number;
+  resolved_rows: number;
   class_0_rows: number;
   class_1a_rows: number;
   class_1b_rows: number;

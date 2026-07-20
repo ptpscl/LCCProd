@@ -104,6 +104,14 @@ def get_silver_stats() -> dict:
         client.table(SILVER_TABLE).select("id", count="exact", head=True)
         .eq("validation_status", "clean").execute().count or 0
     )
+    resolved = (
+        client.table(SILVER_TABLE).select("id", count="exact", head=True)
+        .eq("validation_status", "resolved").execute().count or 0
+    )
+    flagged = (
+        client.table(SILVER_TABLE).select("id", count="exact", head=True)
+        .eq("validation_status", "flagged").execute().count or 0
+    )
     class_1a = (
         client.table(SILVER_TABLE).select("id", count="exact", head=True)
         .eq("anomaly_class", "1A").execute().count or 0
@@ -112,7 +120,6 @@ def get_silver_stats() -> dict:
         client.table(SILVER_TABLE).select("id", count="exact", head=True)
         .eq("anomaly_class", "1B").execute().count or 0
     )
-    flagged = total - clean
     latest = (
         client.table(RUNS_TABLE).select("*")
         .order("created_at", desc=True).limit(1).execute().data or []
@@ -121,7 +128,8 @@ def get_silver_stats() -> dict:
         "total_rows": total,
         "clean_rows": clean,
         "flagged_rows": flagged,
-        "class_0_rows": clean,
+        "resolved_rows": resolved,
+        "class_0_rows": clean + resolved,
         "class_1a_rows": class_1a,
         "class_1b_rows": class_1b,
         "latest_run": latest[0] if latest else None,

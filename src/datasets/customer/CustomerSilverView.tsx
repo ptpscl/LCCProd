@@ -12,6 +12,8 @@ import {
 import {
   CUSTOMER_SILVER_DEMO_ROWS,
   CUSTOMER_SILVER_DEMO_STATS,
+  applyCustomerDemoResolutions,
+  saveCustomerDemoResolution,
 } from './customerSilverDemo';
 
 const DEMO_MODE = true;
@@ -31,6 +33,7 @@ const EMPTY_STATS: CustomerSilverStats = {
   total_rows: 0,
   clean_rows: 0,
   flagged_rows: 0,
+  resolved_rows: 0,
   class_0_rows: 0,
   class_1a_rows: 0,
   class_1b_rows: 0,
@@ -38,9 +41,20 @@ const EMPTY_STATS: CustomerSilverStats = {
 };
 
 export default function CustomerSilverView() {
-  const [stats, setStats] = useState<CustomerSilverStats>(DEMO_MODE ? CUSTOMER_SILVER_DEMO_STATS : EMPTY_STATS);
+  const initialDemoRows = applyCustomerDemoResolutions(CUSTOMER_SILVER_DEMO_ROWS);
+  const initialResolvedCount = initialDemoRows.filter(row => row.validation_status === 'resolved').length;
+  const [stats, setStats] = useState<CustomerSilverStats>(DEMO_MODE ? {
+    ...CUSTOMER_SILVER_DEMO_STATS,
+    flagged_rows: Math.max(0, CUSTOMER_SILVER_DEMO_STATS.flagged_rows - initialResolvedCount),
+    resolved_rows: initialResolvedCount,
+    class_0_rows: CUSTOMER_SILVER_DEMO_STATS.class_0_rows + initialResolvedCount,
+    class_1a_rows: Math.max(0, CUSTOMER_SILVER_DEMO_STATS.class_1a_rows
+      - initialDemoRows.filter(row => row.validation_status === 'resolved' && row.original_anomaly_class === '1A').length),
+    class_1b_rows: Math.max(0, CUSTOMER_SILVER_DEMO_STATS.class_1b_rows
+      - initialDemoRows.filter(row => row.validation_status === 'resolved' && row.original_anomaly_class === '1B').length),
+  } : EMPTY_STATS);
   const [rows, setRows] = useState<any[]>([]);
-  const [demoRows, setDemoRows] = useState<any[]>(() => CUSTOMER_SILVER_DEMO_ROWS.map(row => ({ ...row, quality_issues: [...row.quality_issues] })));
+  const [demoRows, setDemoRows] = useState<any[]>(initialDemoRows);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
@@ -160,8 +174,8 @@ export default function CustomerSilverView() {
   const saveResolution = () => {
     if (!selectedRow) return;
     const previousClass = selectedRow.anomaly_class;
-    setDemoRows(previous => previous.map(row => row.id === selectedRow.id ? {
-      ...row,
+    const resolvedRow = {
+      ...selectedRow,
       'CUSTOMER NUMBER': editForm.customer_number.trim(),
       GENDER: editForm.gender.trim() || null,
       BIRTHDAY: editForm.birthday || null,
@@ -170,17 +184,20 @@ export default function CustomerSilverView() {
       PROVINCE: editForm.province.trim() || null,
       'LAST VISIT': editForm.last_visit || null,
       anomaly_class: '0',
+      original_anomaly_class: selectedRow.original_anomaly_class || previousClass,
       validation_status: 'resolved',
-      original_quality_issues: row.original_quality_issues || [...row.quality_issues],
+      original_quality_issues: selectedRow.original_quality_issues || [...selectedRow.quality_issues],
       quality_issues: [],
       resolution_note: editForm.resolution_note.trim(),
       resolved_at: new Date().toISOString(),
-    } : row));
+    };
+    setDemoRows(previous => previous.map(row => row.id === selectedRow.id ? resolvedRow : row));
+    saveCustomerDemoResolution(resolvedRow);
     if (previousClass !== '0') {
       setStats(previous => ({
         ...previous,
-        clean_rows: previous.clean_rows + 1,
         flagged_rows: Math.max(0, previous.flagged_rows - 1),
+        resolved_rows: previous.resolved_rows + 1,
         class_0_rows: previous.class_0_rows + 1,
         class_1a_rows: previousClass === '1A' ? Math.max(0, previous.class_1a_rows - 1) : previous.class_1a_rows,
         class_1b_rows: previousClass === '1B' ? Math.max(0, previous.class_1b_rows - 1) : previous.class_1b_rows,
@@ -210,10 +227,11 @@ export default function CustomerSilverView() {
       </button>
     </div>
 
-    <div className="grid grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
       {[
         ['Total Silver Rows', stats.total_rows, 'text-text-main'],
-        ['Class 0 · Clean', stats.class_0_rows, 'text-green-700'],
+        ['Clean', stats.clean_rows, 'text-green-700'],
+        ['Resolved', stats.resolved_rows, 'text-blue-700'],
         ['Class 1A · Province', stats.class_1a_rows, 'text-amber-600'],
         ['Class 1B · Anomaly', stats.class_1b_rows, 'text-red-700'],
       ].map(([label, value, color]) => <div key={String(label)} className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-6">

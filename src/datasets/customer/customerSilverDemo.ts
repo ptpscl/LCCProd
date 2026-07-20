@@ -6,6 +6,7 @@ export const CUSTOMER_SILVER_DEMO_STATS: CustomerSilverStats = {
   total_rows: 1_039_001,
   clean_rows: 736_557,
   flagged_rows: 302_444,
+  resolved_rows: 0,
   class_0_rows: 736_557,
   class_1a_rows: 223_901,
   class_1b_rows: 78_543,
@@ -62,3 +63,26 @@ export const CUSTOMER_SILVER_DEMO_ROWS = [
     quality_issues: ['duplicate_customer_number'],
   },
 ];
+
+const RESOLUTION_STORAGE_KEY = 'lcc-customer-silver-demo-resolutions';
+
+export function loadCustomerDemoResolutions(): any[] {
+  try {
+    return JSON.parse(window.localStorage.getItem(RESOLUTION_STORAGE_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+export function applyCustomerDemoResolutions(rows: any[]): any[] {
+  const resolutions = new Map(loadCustomerDemoResolutions().map(row => [row.id, row]));
+  return rows.map(row => resolutions.has(row.id)
+    ? { ...row, ...resolutions.get(row.id) }
+    : { ...row, quality_issues: [...row.quality_issues] });
+}
+
+export function saveCustomerDemoResolution(row: any): void {
+  const resolutions = loadCustomerDemoResolutions().filter(existing => existing.id !== row.id);
+  resolutions.push(row);
+  window.localStorage.setItem(RESOLUTION_STORAGE_KEY, JSON.stringify(resolutions));
+}
