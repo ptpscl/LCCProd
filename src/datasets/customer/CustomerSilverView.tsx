@@ -10,8 +10,8 @@ import {
   startCustomerSilverProcessing,
 } from './customerService';
 import {
+  CUSTOMER_SILVER_DEMO_ROWS,
   CUSTOMER_SILVER_DEMO_STATS,
-  loadCustomerSilverDemoRows,
 } from './customerSilverDemo';
 
 const DEMO_MODE = true;
@@ -40,7 +40,6 @@ const EMPTY_STATS: CustomerSilverStats = {
 export default function CustomerSilverView() {
   const [stats, setStats] = useState<CustomerSilverStats>(DEMO_MODE ? CUSTOMER_SILVER_DEMO_STATS : EMPTY_STATS);
   const [rows, setRows] = useState<any[]>([]);
-  const [demoRows, setDemoRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
@@ -58,9 +57,7 @@ export default function CustomerSilverView() {
     setError(null);
     try {
       if (DEMO_MODE) {
-        const sample = demoRows.length ? demoRows : await loadCustomerSilverDemoRows();
-        if (!demoRows.length) setDemoRows(sample);
-        const filtered = sample.filter(row => {
+        const filtered = CUSTOMER_SILVER_DEMO_ROWS.filter(row => {
           if (statusFilter && row.validation_status !== statusFilter) return false;
           if (anomalyClass && row.anomaly_class !== anomalyClass) return false;
           if (customerNumber && row['CUSTOMER NUMBER'] !== customerNumber.toUpperCase()) return false;
@@ -145,7 +142,7 @@ export default function CustomerSilverView() {
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
   return <div className="space-y-6">
-    {DEMO_MODE && <div className="px-4 py-3 rounded-[8px] border border-blue-200 bg-blue-50 text-blue-900 text-[13px] flex items-center justify-between"><span><strong>Prototype demo:</strong> summary counts come from the completed anomaly notebook; the table shows 100 authenticated live Bronze samples classified in-browser.</span><span className="px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-[11px] font-semibold">Read-only sample</span></div>}
+    {DEMO_MODE && <div className="px-4 py-3 rounded-[8px] border border-blue-200 bg-blue-50 text-blue-900 text-[13px] flex items-center justify-between"><span><strong>Prototype demo:</strong> summary counts come from the completed anomaly notebook; table rows are illustrative samples.</span><span className="px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-[11px] font-semibold">No live processing</span></div>}
     {error && <div className="px-4 py-3 rounded-[8px] border border-red-200 bg-red-50 text-red-800 text-[13px]">{error}</div>}
 
     <div className="flex items-center justify-between">
