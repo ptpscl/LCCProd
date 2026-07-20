@@ -231,12 +231,17 @@ export default function CustomerSilverView() {
   }), [demoRows]);
 
   const reviewRule = (rule: typeof CUSTOMER_ANOMALY_RULES[number]) => {
+    const affectedRows = demoRows.filter(row =>
+      (row.original_quality_issues || row.quality_issues).includes(rule.id));
+    const reviewTarget = affectedRows.find(row => row.validation_status !== 'resolved')
+      || affectedRows[0];
     setPage(1);
     setStatusFilter('');
     setAnomalyClass('');
     setCustomerNumber('');
     setCustomerNumberInput('');
     setQualityIssue(rule.id);
+    if (reviewTarget) openReview(reviewTarget);
   };
 
   return <div className="space-y-6">
