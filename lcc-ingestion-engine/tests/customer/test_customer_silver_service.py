@@ -4,6 +4,7 @@ import sys
 
 supabase_service = MagicMock()
 sys.modules.setdefault("app.services.customer.supabase_service", supabase_service)
+sys.modules.setdefault("psycopg", MagicMock())
 
 from app.services.customer import silver_service  # noqa: E402
 
@@ -14,15 +15,19 @@ class CustomerSilverServiceTests(unittest.TestCase):
         client = MagicMock()
         get_client.return_value = client
         client.table.return_value.select.return_value.execute.return_value.count = 10
-        client.rpc.return_value.execute.return_value.data = [{
-            "processed_row_count": 10,
-            "clean_row_count": 7,
-            "flagged_row_count": 3,
-        }]
+        connection = MagicMock()
+        cursor = MagicMock()
+        silver_service.psycopg.connect.return_value.__enter__.return_value = connection
+        connection.cursor.return_value.__enter__.return_value = cursor
+        cursor.fetchone.return_value = (10, 7, 3)
 
-        silver_service.process_silver_run("run-1")
+        with patch.object(silver_service, "DATABASE_URL", "postgresql://test"):
+            silver_service.process_silver_run("run-1")
 
-        client.rpc.assert_called_once_with("refresh_customer_silver")
+        silver_service.psycopg.connect.assert_called_once()
+        cursor.execute.assert_called_once_with(
+            "SELECT * FROM public.refresh_customer_silver()"
+        )
         update_payloads = [
             call.args[0]
             for call in client.table.return_value.update.call_args_list
@@ -36,9 +41,10 @@ class CustomerSilverServiceTests(unittest.TestCase):
         client = MagicMock()
         get_client.return_value = client
         client.table.return_value.select.return_value.execute.return_value.count = 10
-        client.rpc.return_value.execute.side_effect = RuntimeError("processor failed")
+        silver_service.psycopg.connect.side_effect = RuntimeError("processor failed")
 
-        silver_service.process_silver_run("run-2")
+        with patch.object(silver_service, "DATABASE_URL", "postgresql://test"):
+            silver_service.process_silver_run("run-2")
 
         final_payload = client.table.return_value.update.call_args_list[-1].args[0]
         self.assertEqual(final_payload["status"], "failed")

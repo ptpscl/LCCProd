@@ -43,6 +43,9 @@ export interface CustomerSilverStats {
   total_rows: number;
   clean_rows: number;
   flagged_rows: number;
+  class_0_rows: number;
+  class_1a_rows: number;
+  class_1b_rows: number;
   latest_run: CustomerSilverRun | null;
 }
 
@@ -50,6 +53,7 @@ export interface CustomerSilverFilters {
   validation_status?: 'clean' | 'flagged' | 'resolved' | '';
   customer_number?: string;
   quality_issue?: string;
+  anomaly_class?: '0' | '1A' | '1B' | '';
   page?: number;
   page_size?: number;
 }

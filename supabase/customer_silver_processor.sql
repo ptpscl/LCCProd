@@ -14,15 +14,52 @@ AS $$
 DECLARE
     cleaned text := btrim(raw_value);
     parsed date;
+    parts text[];
 BEGIN
-    IF cleaned = '' OR cleaned !~ '^[0-9]{8}$' THEN
+    IF cleaned = '' OR upper(cleaned) IN ('-', 'NAN', '<NA>') THEN
         RETURN NULL;
     END IF;
-    parsed := to_date(cleaned, 'YYYYMMDD');
-    IF to_char(parsed, 'YYYYMMDD') <> cleaned THEN
+
+    IF cleaned ~ '^[0-9]{8}$' THEN
+        parsed := to_date(cleaned, 'YYYYMMDD');
+        IF to_char(parsed, 'YYYYMMDD') = cleaned THEN
+            RETURN parsed;
+        END IF;
+        RETURN NULL;
+    ELSIF cleaned ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN
+        parsed := cleaned::date;
+        RETURN parsed;
+    ELSIF cleaned ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2} ' THEN
+        parsed := substring(cleaned FROM 1 FOR 10)::date;
+        RETURN parsed;
+    ELSIF cleaned ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$' THEN
+        parts := string_to_array(cleaned, '/');
+        BEGIN
+            RETURN make_date(parts[3]::integer, parts[1]::integer, parts[2]::integer);
+        EXCEPTION WHEN OTHERS THEN
+            RETURN make_date(parts[3]::integer, parts[2]::integer, parts[1]::integer);
+        END;
+    END IF;
+    RETURN NULL;
+EXCEPTION WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.try_customer_integer(raw_value text)
+RETURNS integer
+LANGUAGE plpgsql
+IMMUTABLE
+PARALLEL SAFE
+AS $$
+DECLARE
+    cleaned text := btrim(raw_value);
+BEGIN
+    IF cleaned = '' OR upper(cleaned) IN ('-', 'NAN', '<NA>')
+       OR cleaned !~ '^-?[0-9]+$' THEN
         RETURN NULL;
     END IF;
-    RETURN parsed;
+    RETURN cleaned::integer;
 EXCEPTION WHEN OTHERS THEN
     RETURN NULL;
 END;
@@ -60,6 +97,7 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
+SET statement_timeout = '5min'
 AS $$
 BEGIN
     -- A refresh is atomic: readers see either the previous complete result or
@@ -82,17 +120,18 @@ BEGIN
         "LAST VISIT",
         "FREQUENCY OF VISIT",
         "LAST VISITED STORE",
+        anomaly_class,
         validation_status,
         quality_issues
     )
-    WITH typed AS (
+    WITH typed AS MATERIALIZED (
         SELECT
             bronze.id AS bronze_id,
             bronze.source_batch_id,
             upper(btrim(bronze."CUSTOMER NUMBER")) AS customer_number,
             nullif(upper(btrim(bronze."GENDER")), '') AS gender,
             public.try_customer_date(bronze."BIRTHDAY") AS birthday,
-            public.try_customer_nonnegative_integer(bronze."AGE") AS age,
+            public.try_customer_integer(bronze."AGE") AS age,
             nullif(btrim(bronze."CITY"), '') AS city,
             nullif(btrim(bronze."PROVINCE"), '') AS province,
             public.try_customer_date(bronze."EXPIRY DATE") AS expiry_date,
@@ -112,39 +151,82 @@ BEGIN
             bronze."LAST VISIT" AS raw_last_visit,
             bronze."FREQUENCY OF VISIT" AS raw_frequency,
             count(*) OVER (
-                PARTITION BY upper(btrim(bronze."CUSTOMER NUMBER"))
+                PARTITION BY bronze.source_batch_id,
+                             upper(btrim(bronze."CUSTOMER NUMBER"))
             ) AS customer_number_count
         FROM public.bronze_customer_database AS bronze
     ),
     assessed AS (
         SELECT
             typed.*,
-            array_remove(ARRAY[
-                CASE WHEN customer_number_count > 1
-                    THEN 'duplicate_customer_number' END,
-                CASE WHEN nullif(btrim(raw_birthday), '') IS NOT NULL
-                          AND birthday IS NULL
-                    THEN 'invalid_birthday' END,
-                CASE WHEN nullif(btrim(raw_age), '') IS NOT NULL
-                          AND age IS NULL
-                    THEN 'invalid_age' END,
-                CASE WHEN nullif(btrim(raw_expiry_date), '') IS NOT NULL
-                          AND expiry_date IS NULL
-                    THEN 'invalid_expiry_date' END,
-                CASE WHEN nullif(btrim(raw_application_date), '') IS NOT NULL
-                          AND application_date IS NULL
-                    THEN 'invalid_application_date' END,
-                CASE WHEN nullif(btrim(raw_member_since), '') IS NOT NULL
-                          AND member_since IS NULL
-                    THEN 'invalid_member_since' END,
-                CASE WHEN nullif(btrim(raw_last_visit), '') IS NOT NULL
-                          AND last_visit IS NULL
-                    THEN 'invalid_last_visit' END,
-                CASE WHEN nullif(btrim(raw_frequency), '') IS NOT NULL
-                          AND frequency_of_visit IS NULL
-                    THEN 'invalid_frequency_of_visit' END
-            ], NULL) AS issues
+            (
+                customer_number IS NULL
+                OR customer_number IN ('-', 'NAN', '<NA>')
+            ) AS is_missing_customer_number,
+            (
+                customer_number IS NOT NULL
+                AND customer_number NOT IN ('-', 'NAN', '<NA>')
+                AND customer_number_count > 1
+            ) AS is_duplicate_customer_number,
+            (
+                province IS NULL OR upper(province) IN ('-', 'NAN', '<NA>')
+            ) AS is_without_province,
+            (
+                nullif(btrim(raw_birthday), '') IS NOT NULL
+                AND upper(btrim(raw_birthday)) NOT IN ('-', 'NAN', '<NA>')
+                AND birthday IS NULL
+            ) AS is_birthday_invalid,
+            (birthday > current_date) AS is_birthday_in_future,
+            (
+                birthday IS NOT NULL
+                AND extract(year FROM current_date) - extract(year FROM birthday) > 120
+            ) AS is_birthday_age_over_120,
+            (
+                nullif(btrim(raw_age), '') IS NOT NULL
+                AND upper(btrim(raw_age)) NOT IN ('-', 'NAN', '<NA>')
+                AND age IS NULL
+            ) AS is_age_invalid,
+            (
+                birthday IS NOT NULL AND age IS NOT NULL
+                AND abs(
+                    extract(year FROM current_date) - extract(year FROM birthday) - age
+                ) > 2
+            ) AS is_birthday_age_mismatch
         FROM typed
+    ),
+    classified AS (
+        SELECT
+            assessed.*,
+            array_remove(ARRAY[
+                CASE WHEN is_missing_customer_number
+                    THEN 'missing_customer_number' END,
+                CASE WHEN is_duplicate_customer_number
+                    THEN 'duplicate_customer_number' END,
+                CASE WHEN is_without_province
+                    THEN 'without_province' END,
+                CASE WHEN is_birthday_invalid
+                    THEN 'birthday_invalid' END,
+                CASE WHEN is_birthday_in_future
+                    THEN 'birthday_in_future' END,
+                CASE WHEN is_birthday_age_over_120
+                    THEN 'birthday_age_over_120' END,
+                CASE WHEN is_age_invalid
+                    THEN 'age_invalid' END,
+                CASE WHEN is_birthday_age_mismatch
+                    THEN 'birthday_age_mismatch' END
+            ], NULL) AS issues,
+            CASE
+                WHEN is_missing_customer_number
+                  OR is_duplicate_customer_number
+                  OR is_birthday_invalid
+                  OR is_birthday_in_future
+                  OR is_birthday_age_over_120
+                  OR is_age_invalid
+                  OR is_birthday_age_mismatch THEN '1B'
+                WHEN is_without_province THEN '1A'
+                ELSE '0'
+            END AS calculated_anomaly_class
+        FROM assessed
     )
     SELECT
         bronze_id,
@@ -162,9 +244,10 @@ BEGIN
         last_visit,
         frequency_of_visit,
         last_visited_store,
-        CASE WHEN cardinality(issues) = 0 THEN 'clean' ELSE 'flagged' END,
+        calculated_anomaly_class,
+        CASE WHEN calculated_anomaly_class = '0' THEN 'clean' ELSE 'flagged' END,
         issues
-    FROM assessed;
+    FROM classified;
 
     RETURN QUERY
     SELECT

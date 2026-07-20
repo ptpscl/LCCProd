@@ -28,6 +28,10 @@ CREATE TABLE IF NOT EXISTS public.silver_customer_database (
     "LAST VISIT" date,
     "FREQUENCY OF VISIT" integer,
     "LAST VISITED STORE" text,
+    anomaly_class text NOT NULL DEFAULT '0'
+        CONSTRAINT silver_customer_anomaly_class_check CHECK (
+        anomaly_class IN ('0', '1A', '1B')
+    ),
     validation_status text NOT NULL DEFAULT 'clean' CHECK (
         validation_status IN ('clean', 'flagged', 'resolved')
     ),
@@ -35,6 +39,25 @@ CREATE TABLE IF NOT EXISTS public.silver_customer_database (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Migrates Silver tables created before anomaly classes were introduced.
+ALTER TABLE public.silver_customer_database
+    ADD COLUMN IF NOT EXISTS anomaly_class text NOT NULL DEFAULT '0';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'public.silver_customer_database'::regclass
+          AND conname = 'silver_customer_anomaly_class_check'
+    ) THEN
+        ALTER TABLE public.silver_customer_database
+            ADD CONSTRAINT silver_customer_anomaly_class_check
+            CHECK (anomaly_class IN ('0', '1A', '1B'));
+    END IF;
+END
+$$;
 
 -- Tracks asynchronous Bronze-to-Silver processing without changing Bronze
 -- batch statuses. Only one active Customer Silver run should be started at a
@@ -61,6 +84,8 @@ CREATE INDEX IF NOT EXISTS idx_silver_customer_source_batch
     ON public.silver_customer_database (source_batch_id);
 CREATE INDEX IF NOT EXISTS idx_silver_customer_validation_status
     ON public.silver_customer_database (validation_status);
+CREATE INDEX IF NOT EXISTS idx_silver_customer_anomaly_class
+    ON public.silver_customer_database (anomaly_class);
 CREATE INDEX IF NOT EXISTS idx_silver_customer_city
     ON public.silver_customer_database ("CITY");
 CREATE INDEX IF NOT EXISTS idx_silver_customer_province

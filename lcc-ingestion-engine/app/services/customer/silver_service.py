@@ -3,6 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import logging
 
+import psycopg
+
+from app.config import DATABASE_URL
 from app.services.customer.supabase_service import get_client
 
 logger = logging.getLogger(__name__)
@@ -47,6 +50,8 @@ def get_silver_run(run_id: str) -> dict | None:
 def process_silver_run(run_id: str) -> None:
     client = get_client()
     try:
+        if not DATABASE_URL:
+            raise RuntimeError("DATABASE_URL is not configured for Customer Silver processing")
         source_count = (
             client.table("bronze_customer_database")
             .select("id", count="exact", head=True)
@@ -61,13 +66,21 @@ def process_silver_run(run_id: str) -> None:
             "error_message": None,
         }).eq("id", run_id).execute()
 
-        response = client.rpc("refresh_customer_silver").execute()
-        result = (response.data or [{}])[0]
+        # Run the long transformation on a direct PostgreSQL connection. The
+        # Supabase REST API is intentionally kept for short metadata queries,
+        # but it cannot reliably return a multi-minute RPC response.
+        with psycopg.connect(DATABASE_URL, connect_timeout=15) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT * FROM public.refresh_customer_silver()")
+                result_row = cursor.fetchone()
+        if not result_row:
+            raise RuntimeError("Customer Silver processor returned no result")
+        processed_count, clean_count, flagged_count = result_row
         client.table(RUNS_TABLE).update({
             "status": "completed",
-            "processed_row_count": result.get("processed_row_count", 0),
-            "clean_row_count": result.get("clean_row_count", 0),
-            "flagged_row_count": result.get("flagged_row_count", 0),
+            "processed_row_count": processed_count,
+            "clean_row_count": clean_count,
+            "flagged_row_count": flagged_count,
             "completed_at": _now(),
             "updated_at": _now(),
         }).eq("id", run_id).execute()
@@ -91,6 +104,14 @@ def get_silver_stats() -> dict:
         client.table(SILVER_TABLE).select("id", count="exact", head=True)
         .eq("validation_status", "clean").execute().count or 0
     )
+    class_1a = (
+        client.table(SILVER_TABLE).select("id", count="exact", head=True)
+        .eq("anomaly_class", "1A").execute().count or 0
+    )
+    class_1b = (
+        client.table(SILVER_TABLE).select("id", count="exact", head=True)
+        .eq("anomaly_class", "1B").execute().count or 0
+    )
     flagged = total - clean
     latest = (
         client.table(RUNS_TABLE).select("*")
@@ -100,6 +121,9 @@ def get_silver_stats() -> dict:
         "total_rows": total,
         "clean_rows": clean,
         "flagged_rows": flagged,
+        "class_0_rows": clean,
+        "class_1a_rows": class_1a,
+        "class_1b_rows": class_1b,
         "latest_run": latest[0] if latest else None,
     }
 
@@ -110,6 +134,7 @@ def get_silver_rows(
     validation_status: str | None = None,
     customer_number: str | None = None,
     quality_issue: str | None = None,
+    anomaly_class: str | None = None,
 ) -> dict:
     client = get_client()
 
@@ -120,6 +145,8 @@ def get_silver_rows(
             query = query.eq("CUSTOMER NUMBER", customer_number.strip().upper())
         if quality_issue:
             query = query.contains("quality_issues", [quality_issue])
+        if anomaly_class:
+            query = query.eq("anomaly_class", anomaly_class)
         return query
 
     count_response = apply_filters(

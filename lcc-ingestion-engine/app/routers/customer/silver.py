@@ -53,12 +53,14 @@ def silver_rows(
     validation_status: str | None = Query(default=None, pattern="^(clean|flagged|resolved)$"),
     customer_number: str | None = None,
     quality_issue: str | None = None,
+    anomaly_class: str | None = Query(default=None, pattern="^(0|1A|1B)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ):
     try:
         return get_silver_rows(
-            page, page_size, validation_status, customer_number, quality_issue
+            page, page_size, validation_status, customer_number, quality_issue,
+            anomaly_class,
         )
     except Exception as exc:
         logger.exception("Could not load Customer Silver rows")

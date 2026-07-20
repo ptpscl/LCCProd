@@ -11,20 +11,23 @@ import {
 } from './customerService';
 
 const QUALITY_ISSUES = [
+  'missing_customer_number',
   'duplicate_customer_number',
-  'invalid_birthday',
-  'invalid_age',
-  'invalid_expiry_date',
-  'invalid_application_date',
-  'invalid_member_since',
-  'invalid_last_visit',
-  'invalid_frequency_of_visit',
+  'without_province',
+  'birthday_invalid',
+  'birthday_in_future',
+  'birthday_age_over_120',
+  'age_invalid',
+  'birthday_age_mismatch',
 ];
 
 const EMPTY_STATS: CustomerSilverStats = {
   total_rows: 0,
   clean_rows: 0,
   flagged_rows: 0,
+  class_0_rows: 0,
+  class_1a_rows: 0,
+  class_1b_rows: 0,
   latest_run: null,
 };
 
@@ -37,6 +40,7 @@ export default function CustomerSilverView() {
   const [customerNumber, setCustomerNumber] = useState('');
   const [customerNumberInput, setCustomerNumberInput] = useState('');
   const [qualityIssue, setQualityIssue] = useState('');
+  const [anomalyClass, setAnomalyClass] = useState('');
   const [loading, setLoading] = useState(true);
   const [run, setRun] = useState<CustomerSilverRun | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +56,7 @@ export default function CustomerSilverView() {
           validation_status: statusFilter as any,
           customer_number: customerNumber,
           quality_issue: qualityIssue,
+          anomaly_class: anomalyClass as any,
           page: targetPage,
           page_size: pageSize,
         }),
@@ -67,7 +72,7 @@ export default function CustomerSilverView() {
     }
   };
 
-  useEffect(() => { void load(1); }, [statusFilter, customerNumber, qualityIssue]);
+  useEffect(() => { void load(1); }, [statusFilter, customerNumber, qualityIssue, anomalyClass]);
 
   useEffect(() => {
     if (!run || !['queued', 'processing'].includes(run.status)) return;
@@ -101,6 +106,7 @@ export default function CustomerSilverView() {
     setPage(1);
     setStatusFilter('');
     setQualityIssue('');
+    setAnomalyClass('');
     setCustomerNumber('');
     setCustomerNumberInput('');
   };
@@ -128,23 +134,29 @@ export default function CustomerSilverView() {
       </button>
     </div>
 
-    <div className="grid grid-cols-3 gap-6">
+    <div className="grid grid-cols-4 gap-6">
       {[
         ['Total Silver Rows', stats.total_rows, 'text-text-main'],
-        ['Clean Rows', stats.clean_rows, 'text-green-700'],
-        ['Flagged Rows', stats.flagged_rows, 'text-amber-700'],
+        ['Class 0 · Clean', stats.class_0_rows, 'text-green-700'],
+        ['Class 1A · Province', stats.class_1a_rows, 'text-amber-600'],
+        ['Class 1B · Anomaly', stats.class_1b_rows, 'text-red-700'],
       ].map(([label, value, color]) => <div key={String(label)} className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-6">
         <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">{label}</h3>
         <p className={`text-[28px] font-bold ${color}`}>{loading ? '-' : Number(value).toLocaleString()}</p>
       </div>)}
     </div>
 
-    {run && <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle px-6 py-4 flex items-center justify-between">
-      <div><p className="text-[13px] font-semibold">Latest processing run</p><p className="text-[12px] text-text-muted mt-1">Started {new Date(run.started_at || run.created_at).toLocaleString()}</p></div>
+    {run && <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle px-6 py-4 flex items-center justify-between gap-6">
+      <div><p className="text-[13px] font-semibold">Latest processing run</p><p className="text-[12px] text-text-muted mt-1">Started {new Date(run.started_at || run.created_at).toLocaleString()}</p>{run.error_message && <p className="text-[12px] text-red-700 mt-2 break-all">{run.error_message}</p>}</div>
       <RunBadge status={run.status} />
     </div>}
 
-    <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-5 grid grid-cols-[1fr_1fr_1.4fr_auto] gap-4 items-end">
+    <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-5 grid grid-cols-[0.8fr_1fr_1fr_1.4fr_auto] gap-4 items-end">
+      <label className="text-[12px] font-semibold text-text-muted">Anomaly class
+        <select value={anomalyClass} onChange={event => { setPage(1); setAnomalyClass(event.target.value); }} className="mt-2 w-full h-10 border border-border-subtle rounded-[6px] px-3 bg-white text-[13px] font-normal text-text-main">
+          <option value="">All classes</option><option value="0">0 · Clean</option><option value="1A">1A · Without province</option><option value="1B">1B · Serious anomaly</option>
+        </select>
+      </label>
       <label className="text-[12px] font-semibold text-text-muted">Status
         <select value={statusFilter} onChange={event => { setPage(1); setStatusFilter(event.target.value); }} className="mt-2 w-full h-10 border border-border-subtle rounded-[6px] px-3 bg-white text-[13px] font-normal text-text-main">
           <option value="">All statuses</option><option value="clean">Clean</option><option value="flagged">Flagged</option><option value="resolved">Resolved</option>
@@ -163,10 +175,10 @@ export default function CustomerSilverView() {
 
     <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle overflow-hidden">
       <div className="overflow-x-auto"><table className="w-full text-left border-collapse min-w-[1050px]">
-        <thead><tr className="border-b border-border-subtle bg-surface-bg">{['Customer Number', 'Gender', 'Birthday', 'Age', 'City', 'Province', 'Last Visit', 'Status', 'Quality Issues'].map(label => <th key={label} className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">{label}</th>)}</tr></thead>
+        <thead><tr className="border-b border-border-subtle bg-surface-bg">{['Customer Number', 'Gender', 'Birthday', 'Age', 'City', 'Province', 'Last Visit', 'Class', 'Status', 'Quality Issues'].map(label => <th key={label} className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">{label}</th>)}</tr></thead>
         <tbody className="divide-y divide-border-subtle">
-          {loading ? <tr><td colSpan={9} className="py-12 text-center text-[13px] text-text-muted">Loading Silver rows...</td></tr> : !rows.length ? <tr><td colSpan={9} className="py-12 text-center text-[13px] text-text-muted">No Silver rows match these filters.</td></tr> : rows.map(row => <tr key={row.id} className="hover:bg-surface-bg">
-            <td className="px-4 py-3 text-[12px] font-mono">{row['CUSTOMER NUMBER']}</td><td className="px-4 py-3 text-[12px]">{row.GENDER ?? '-'}</td><td className="px-4 py-3 text-[12px]">{row.BIRTHDAY ?? '-'}</td><td className="px-4 py-3 text-[12px]">{row.AGE ?? '-'}</td><td className="px-4 py-3 text-[12px]">{row.CITY ?? '-'}</td><td className="px-4 py-3 text-[12px]">{row.PROVINCE ?? '-'}</td><td className="px-4 py-3 text-[12px]">{row['LAST VISIT'] ?? '-'}</td><td className="px-4 py-3"><StatusBadge status={row.validation_status} /></td><td className="px-4 py-3 text-[11px] text-amber-800 max-w-[260px]">{(row.quality_issues || []).map((issue: string) => issue.replaceAll('_', ' ')).join(', ') || '-'}</td>
+          {loading ? <tr><td colSpan={10} className="py-12 text-center text-[13px] text-text-muted">Loading Silver rows...</td></tr> : !rows.length ? <tr><td colSpan={10} className="py-12 text-center text-[13px] text-text-muted">No Silver rows match these filters.</td></tr> : rows.map(row => <tr key={row.id} className="hover:bg-surface-bg">
+            <td className="px-4 py-3 text-[12px] font-mono">{row['CUSTOMER NUMBER']}</td><td className="px-4 py-3 text-[12px]">{row.GENDER ?? '-'}</td><td className="px-4 py-3 text-[12px]">{row.BIRTHDAY ?? '-'}</td><td className="px-4 py-3 text-[12px]">{row.AGE ?? '-'}</td><td className="px-4 py-3 text-[12px]">{row.CITY ?? '-'}</td><td className="px-4 py-3 text-[12px]">{row.PROVINCE ?? '-'}</td><td className="px-4 py-3 text-[12px]">{row['LAST VISIT'] ?? '-'}</td><td className="px-4 py-3"><ClassBadge value={row.anomaly_class} /></td><td className="px-4 py-3"><StatusBadge status={row.validation_status} /></td><td className="px-4 py-3 text-[11px] text-amber-800 max-w-[260px]">{(row.quality_issues || []).map((issue: string) => issue.replaceAll('_', ' ')).join(', ') || '-'}</td>
           </tr>)}
         </tbody>
       </table></div>
@@ -183,4 +195,9 @@ function StatusBadge({ status }: { status: string }) {
 function RunBadge({ status }: { status: string }) {
   const color = status === 'completed' ? 'bg-green-100 text-green-800' : status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800';
   return <span className={`px-3 py-1 rounded-full text-[11px] font-medium ${color}`}>{status}</span>;
+}
+
+function ClassBadge({ value }: { value: string }) {
+  const color = value === '0' ? 'bg-green-100 text-green-800' : value === '1A' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800';
+  return <span className={`px-2 py-1 rounded-full text-[11px] font-semibold ${color}`}>{value}</span>;
 }
