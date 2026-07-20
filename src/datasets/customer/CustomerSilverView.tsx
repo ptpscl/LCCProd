@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { CheckCircle2, Loader2, Pencil, Play, Search, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, FileSearch, Loader2, Pencil, Play, Search, X } from 'lucide-react';
 
 import {
   CustomerSilverRun,
@@ -28,6 +28,17 @@ const QUALITY_ISSUES = [
   'age_invalid',
   'birthday_age_mismatch',
 ];
+
+const CUSTOMER_ANOMALY_RULES = [
+  { id: 'missing_customer_number', definition: 'Customer number is blank or contains a recognized missing-value marker.', anomalyClass: '1B' },
+  { id: 'duplicate_customer_number', definition: 'Customer number appears more than once within the same source batch.', anomalyClass: '1B' },
+  { id: 'without_province', definition: 'Province is blank or contains a recognized missing-value marker.', anomalyClass: '1A' },
+  { id: 'birthday_invalid', definition: 'Birthday has a value but cannot be converted into a valid supported date.', anomalyClass: '1B' },
+  { id: 'birthday_in_future', definition: 'Birthday occurs after the current date.', anomalyClass: '1B' },
+  { id: 'birthday_age_over_120', definition: 'Birthday implies that the customer is more than 120 years old.', anomalyClass: '1B' },
+  { id: 'age_invalid', definition: 'Age has a value but cannot be converted into an integer.', anomalyClass: '1B' },
+  { id: 'birthday_age_mismatch', definition: 'Recorded age differs from the age implied by birthday by more than two years.', anomalyClass: '1B' },
+] as const;
 
 const EMPTY_STATS: CustomerSilverStats = {
   total_rows: 0,
@@ -79,7 +90,7 @@ export default function CustomerSilverView() {
           if (statusFilter && row.validation_status !== statusFilter) return false;
           if (anomalyClass && row.anomaly_class !== anomalyClass) return false;
           if (customerNumber && row['CUSTOMER NUMBER'] !== customerNumber.toUpperCase()) return false;
-          if (qualityIssue && !row.quality_issues.includes(qualityIssue)) return false;
+          if (qualityIssue && !(row.original_quality_issues || row.quality_issues).includes(qualityIssue)) return false;
           return true;
         });
         const start = (targetPage - 1) * pageSize;
@@ -209,6 +220,24 @@ export default function CustomerSilverView() {
 
   const processing = !!run && ['queued', 'processing'].includes(run.status);
   const pages = Math.max(1, Math.ceil(total / pageSize));
+  const ruleSummary = useMemo(() => CUSTOMER_ANOMALY_RULES.map(rule => {
+    const affectedRows = demoRows.filter(row =>
+      (row.original_quality_issues || row.quality_issues).includes(rule.id));
+    return {
+      ...rule,
+      affectedRows: affectedRows.length,
+      unresolvedRows: affectedRows.filter(row => row.validation_status !== 'resolved').length,
+    };
+  }), [demoRows]);
+
+  const reviewRule = (rule: typeof CUSTOMER_ANOMALY_RULES[number]) => {
+    setPage(1);
+    setStatusFilter('');
+    setAnomalyClass('');
+    setCustomerNumber('');
+    setCustomerNumberInput('');
+    setQualityIssue(rule.id);
+  };
 
   return <div className="space-y-6">
     {DEMO_MODE && <div className="px-4 py-3 rounded-[8px] border border-blue-200 bg-blue-50 text-blue-900 text-[13px] flex items-center justify-between"><span><strong>Prototype demo:</strong> summary counts come from the completed anomaly notebook; table rows are illustrative samples.</span><span className="px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-[11px] font-semibold">No live processing</span></div>}
@@ -244,6 +273,49 @@ export default function CustomerSilverView() {
       <div><p className="text-[13px] font-semibold">Latest processing run</p><p className="text-[12px] text-text-muted mt-1">Started {new Date(run.started_at || run.created_at).toLocaleString()}</p>{run.error_message && <p className="text-[12px] text-red-700 mt-2 break-all">{run.error_message}</p>}</div>
       <RunBadge status={run.status} />
     </div>}
+
+    <section className="overflow-hidden rounded-[10px] border border-border-subtle bg-white shadow-subtle">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
+        <div>
+          <h3 className="text-[16px] font-semibold text-text-main">Dataset rule summary</h3>
+          <p className="mt-1 text-[12px] text-text-muted">
+            Counts may overlap because one customer can trigger multiple rules. Prototype counts reflect the displayed sample rows.
+          </p>
+        </div>
+        <span className="inline-flex items-center rounded-full bg-silver-bg px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-silver-text">
+          Customer validation
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[900px] border-collapse text-left">
+          <thead><tr className="border-b border-border-subtle bg-surface-bg">
+            <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-text-muted">Anomaly</th>
+            <th className="w-28 px-6 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-text-muted">Class</th>
+            <th className="w-36 px-6 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-text-muted">Affected rows</th>
+            <th className="w-36 px-6 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-text-muted">For review</th>
+            <th className="w-40 px-6 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-text-muted">Action</th>
+          </tr></thead>
+          <tbody className="divide-y divide-border-subtle">
+            {ruleSummary.map(rule => <tr key={rule.id} className="transition-colors hover:bg-surface-bg/70">
+              <td className="px-6 py-4">
+                <p className="font-mono text-[12px] font-semibold text-text-main">{rule.id}</p>
+                <p className="mt-1 text-[11px] leading-4 text-text-muted">{rule.definition}</p>
+              </td>
+              <td className="px-6 py-4 text-center"><ClassBadge value={rule.anomalyClass} /></td>
+              <td className="px-6 py-4 text-right text-[13px] font-semibold tabular-nums text-text-main">{rule.affectedRows.toLocaleString()}</td>
+              <td className="px-6 py-4 text-right text-[13px] font-semibold tabular-nums text-text-main">{rule.unresolvedRows.toLocaleString()}</td>
+              <td className="px-6 py-4 text-right">
+                {rule.affectedRows === 0 ? <span className="inline-flex rounded-full bg-surface-bg px-3 py-1.5 text-[11px] font-semibold text-text-muted">No samples</span>
+                  : <button type="button" onClick={() => reviewRule(rule)} className="inline-flex items-center rounded-[7px] border border-brand-600 bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-600 hover:bg-brand-50">
+                    {rule.unresolvedRows === 0 ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : <FileSearch className="mr-1.5 h-4 w-4" />}
+                    {rule.unresolvedRows === 0 ? 'Reviewed' : 'Review'}
+                  </button>}
+              </td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+    </section>
 
     <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-5 grid grid-cols-[0.8fr_1fr_1fr_1.4fr_auto] gap-4 items-end">
       <label className="text-[12px] font-semibold text-text-muted">Anomaly class
