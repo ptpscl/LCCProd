@@ -196,6 +196,11 @@ export default function SkuBronzeView({ refreshTrigger }: { refreshTrigger: numb
                       </td>
                       <td className="px-6 py-4 text-[13px] text-text-main whitespace-nowrap">
                         {b.row_count != null ? b.row_count.toLocaleString() : '—'}
+                        {b.duplicates_skipped != null && b.duplicates_skipped > 0 && (
+                          <p className="text-[11px] text-text-muted mt-0.5">
+                            {b.duplicates_skipped.toLocaleString()} of {b.file_row_count?.toLocaleString() ?? '?'} in file were duplicates
+                          </p>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-[13px] text-text-muted whitespace-nowrap">
                         {formatSize(b.file_size_bytes || 0)}

@@ -45,6 +45,7 @@ def ingest_batch(batch_id: str) -> dict:
     except Exception as e:
         update_batch(batch_id, None, 'ingestion_failed')
         raise SchemaMismatchError(f"Failed to parse CSV: {e}")
+    file_row_count = len(df)
 
     df.columns = [str(c).strip().upper() for c in df.columns]
 
@@ -105,9 +106,11 @@ def ingest_batch(batch_id: str) -> dict:
         update_batch(batch_id, None, 'ingestion_failed')
         raise RuntimeError(f"Database insertion failed: {e}")
 
-    duplicates_skipped = total_rows - rows_inserted
+    duplicates_skipped = (total_rows - rows_inserted) + within_file_dupes
     logger.info(f"Batch {batch_id}: {rows_inserted} new rows, {duplicates_skipped} duplicates skipped")
-    update_batch(batch_id, rows_inserted, 'ingested')
+    update_batch(batch_id, rows_inserted, 'ingested',
+                 file_row_count=file_row_count,
+                 duplicates_skipped=duplicates_skipped)
 
     return {
         "batch_id": batch_id,

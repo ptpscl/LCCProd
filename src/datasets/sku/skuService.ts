@@ -9,6 +9,8 @@ export interface SkuBatch {
   file_path: string;
   file_size_bytes: number;
   row_count: number | null;
+  file_row_count: number | null;
+  duplicates_skipped: number | null;
   status: string;
   uploaded_by: string;
   created_at: string;
