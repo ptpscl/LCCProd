@@ -1,7 +1,12 @@
 import SkuSilverView from '../sku/SkuSilverView';
+import MmsSilverView from '../mms/MmsSilverView';
+
 export default function SilverView({ datasetId }: { datasetId: string }) {
   if (datasetId === 'sku-hierarchy') {
     return <SkuSilverView />;
+  }
+  if (datasetId === 'mms-sales') {
+    return <MmsSilverView />;
   }
   return (
     <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-12 flex flex-col items-center text-center">
