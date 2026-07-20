@@ -1,6 +1,7 @@
 import SkuSilverView from '../sku/SkuSilverView';
 import CustomerSilverView from '../customer/CustomerSilverView';
 import MmsSilverView from '../mms/MmsSilverView';
+import StageBSilverView from '../stageB/StageBSilverView';
 
 export default function SilverView({ datasetId }: { datasetId: string }) {
   if (datasetId === 'customer-database') return <CustomerSilverView />;
@@ -9,6 +10,9 @@ export default function SilverView({ datasetId }: { datasetId: string }) {
   }
   if (datasetId === 'mms-sales') {
     return <MmsSilverView />;
+  }
+  if (datasetId === 'stage-b') {
+    return <StageBSilverView />;
   }
   return (
     <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-12 flex flex-col items-center text-center">

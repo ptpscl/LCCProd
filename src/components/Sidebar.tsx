@@ -85,6 +85,29 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
                 </button>
               );
             })}
+            {layer.id === 'silver' && (
+              <div className="group relative">
+                <button
+                  type="button"
+                  onClick={() => onViewChange('silver/stage-b')}
+                  aria-describedby="stage-b-navigation-description"
+                  className={`block w-full py-1.5 text-left text-[13px] transition-colors cursor-pointer ${
+                    currentView === 'silver/stage-b'
+                      ? 'text-brand-600 font-semibold'
+                      : 'text-text-muted hover:text-text-main font-medium'
+                  }`}
+                >
+                  Stage B
+                </button>
+                <span
+                  id="stage-b-navigation-description"
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 w-max max-w-[190px] rounded-[6px] bg-gray-900 px-3 py-2 text-[11px] font-medium leading-4 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                  Loyalty + Customer DB + MMS
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
