@@ -54,9 +54,8 @@ function safeDataError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function displayValue(value: string | number | null | undefined) {
+function displayValue(value: string | null | undefined) {
   if (value === null || value === undefined || value === '') return '—';
-  if (typeof value === 'number' && value !== value) return '—';
   return value;
 }
 

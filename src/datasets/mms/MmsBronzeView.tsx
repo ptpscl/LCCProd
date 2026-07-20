@@ -57,11 +57,10 @@ function safeIngestionError(error: unknown): string {
   }
   if (
     message.includes('Schema mismatch')
-    || message.includes('valid YYMMDD')
-    || message.includes('multiple stores')
-    || message.includes('multiple calendar months')
-    || message.includes('source values are blank')
-    || message.includes('duplicate MMS rows')
+    || message.includes('MMS file contains no data rows')
+    || message.includes('multiple populated stores')
+    || message.includes('multiple detected calendar months')
+    || message.includes('Could not parse MMS CSV')
   ) {
     return 'MMS validation failed. Review the file structure and values, then upload a corrected file.';
   }

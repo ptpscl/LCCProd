@@ -1,3 +1,5 @@
+import csv
+import io
 import sys
 from types import ModuleType, SimpleNamespace
 import unittest
@@ -71,6 +73,36 @@ from app.services.mms import supabase_service
 
 
 BATCH_ID = "11111111-1111-1111-1111-111111111111"
+SOURCE_COLUMNS = [
+    "DATE",
+    "TRANSACTION_NUMBER",
+    "REGISTER_NUMBER",
+    "STORE_CODE",
+    "STORE_CATEGORIZATION",
+    "SKU_CODE",
+    "TRANSACTION_TYPE",
+    "MMS_SALES",
+    "QTY_SOLD",
+    "MARGIN",
+]
+
+
+def nullable_text_bronze_row(row_id: int) -> dict:
+    return {
+        "id": row_id,
+        "DATE": "not-a-date",
+        "TRANSACTION_NUMBER": " 000123 ",
+        "REGISTER_NUMBER": None,
+        "STORE_CODE": " MMS_TEST_001 ",
+        "STORE_CATEGORIZATION": "NULL",
+        "SKU_CODE": "0000456",
+        "TRANSACTION_TYPE": None,
+        "MMS_SALES": "00010.0500",
+        "QTY_SOLD": "12345678901234567890123456789.0000000001",
+        "MARGIN": " -5.000 ",
+        "source_batch_id": BATCH_ID,
+        "loaded_at": "2026-07-20T00:00:00+00:00",
+    }
 
 
 class MmsIngestRouterTests(unittest.TestCase):
@@ -199,6 +231,49 @@ class MmsBronzeRouterTests(unittest.TestCase):
             },
         )
 
+    @patch.object(bronze_router, "fetch_bronze_rows")
+    @patch.object(bronze_router, "count_bronze_rows")
+    def test_rows_preserve_nullable_text_and_duplicate_source_rows(
+        self, count_rows, fetch_rows
+    ):
+        first = nullable_text_bronze_row(1)
+        second = nullable_text_bronze_row(2)
+        count_rows.return_value = 2
+        fetch_rows.return_value = [first, second]
+
+        if REAL_FASTAPI:
+            http_response = self.client.get(
+                "/mms/bronze/rows", params={"page": 1, "page_size": 20}
+            )
+            self.assertEqual(http_response.status_code, 200)
+            response = http_response.json()
+        else:
+            response = bronze_router.get_bronze_rows(page=1, page_size=20)
+
+        self.assertEqual(response["rows"], [first, second])
+        self.assertEqual(
+            [first[column] for column in SOURCE_COLUMNS],
+            [second[column] for column in SOURCE_COLUMNS],
+        )
+        self.assertEqual(response["rows"][0]["MMS_SALES"], "00010.0500")
+        self.assertEqual(
+            response["rows"][0]["QTY_SOLD"],
+            "12345678901234567890123456789.0000000001",
+        )
+        self.assertEqual(response["rows"][0]["DATE"], "not-a-date")
+        self.assertEqual(response["rows"][0]["STORE_CATEGORIZATION"], "NULL")
+        self.assertEqual(response["rows"][0]["TRANSACTION_NUMBER"], " 000123 ")
+        self.assertIsNone(response["rows"][0]["REGISTER_NUMBER"])
+        self.assertIsNone(response["rows"][0]["TRANSACTION_TYPE"])
+        fetch_rows.assert_called_once_with(
+            store_code=None,
+            date_from=None,
+            date_to=None,
+            sku_code=None,
+            offset=0,
+            limit=20,
+        )
+
     def test_rows_rejects_invalid_page_and_page_size(self):
         invalid_values = [(0, 20), (1, 0), (1, 101)]
         for page, page_size in invalid_values:
@@ -252,6 +327,57 @@ class MmsBronzeRouterTests(unittest.TestCase):
         self.assertIn("240102,2", content)
         fetch_rows.assert_called_once_with(
             store_code="417",
+            date_from=None,
+            date_to=None,
+            sku_code=None,
+            offset=0,
+            limit=2,
+        )
+
+    @patch.object(bronze_router, "fetch_bronze_rows")
+    @patch.object(bronze_router, "count_bronze_rows")
+    def test_export_preserves_nullable_text_and_duplicate_source_rows(
+        self, count_rows, fetch_rows
+    ):
+        first = nullable_text_bronze_row(1)
+        second = nullable_text_bronze_row(2)
+        count_rows.return_value = 2
+        fetch_rows.return_value = [first, second]
+
+        if REAL_FASTAPI:
+            response = self.client.get("/mms/bronze/export")
+            self.assertEqual(response.status_code, 200)
+            content = response.text
+        else:
+            response = bronze_router.export_bronze_rows()
+            content = "".join(response.body_iterator)
+
+        exported = list(csv.DictReader(io.StringIO(content)))
+        self.assertEqual(len(exported), 2)
+        for row in exported:
+            self.assertEqual(row["DATE"], "not-a-date")
+            self.assertEqual(row["TRANSACTION_NUMBER"], " 000123 ")
+            self.assertEqual(row["REGISTER_NUMBER"], "")
+            self.assertEqual(row["STORE_CODE"], " MMS_TEST_001 ")
+            self.assertEqual(row["STORE_CATEGORIZATION"], "NULL")
+            self.assertEqual(row["SKU_CODE"], "0000456")
+            self.assertEqual(row["TRANSACTION_TYPE"], "")
+            self.assertEqual(row["MMS_SALES"], "00010.0500")
+            self.assertEqual(
+                row["QTY_SOLD"],
+                "12345678901234567890123456789.0000000001",
+            )
+            self.assertEqual(row["MARGIN"], " -5.000 ")
+
+        self.assertEqual(
+            [[row[column] for column in SOURCE_COLUMNS] for row in exported],
+            [[exported[0][column] for column in SOURCE_COLUMNS]] * 2,
+        )
+        self.assertNotIn("None", content)
+        self.assertNotIn("nan", content)
+        self.assertNotIn("<NA>", content)
+        fetch_rows.assert_called_once_with(
+            store_code=None,
             date_from=None,
             date_to=None,
             sku_code=None,
@@ -381,6 +507,7 @@ class MmsBronzeSupabaseServiceTests(unittest.TestCase):
             [
                 call("DATE", desc=False),
                 call("TRANSACTION_NUMBER", desc=False),
+                call("id", desc=False),
             ],
         )
         query.range.assert_called_once_with(20, 39)

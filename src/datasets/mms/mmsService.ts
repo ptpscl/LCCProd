@@ -85,20 +85,18 @@ export interface MmsBronzeRowsResponse {
   total_matching_rows: number;
 }
 
-export type MmsNumericValue = string | number;
-
 export interface MmsBronzeRow {
   id: string | number;
-  DATE: string;
-  TRANSACTION_NUMBER: string;
-  REGISTER_NUMBER: string;
-  STORE_CODE: string;
-  STORE_CATEGORIZATION: string;
-  SKU_CODE: string;
-  TRANSACTION_TYPE: string;
-  MMS_SALES: MmsNumericValue;
-  QTY_SOLD: MmsNumericValue;
-  MARGIN: MmsNumericValue;
+  DATE: string | null;
+  TRANSACTION_NUMBER: string | null;
+  REGISTER_NUMBER: string | null;
+  STORE_CODE: string | null;
+  STORE_CATEGORIZATION: string | null;
+  SKU_CODE: string | null;
+  TRANSACTION_TYPE: string | null;
+  MMS_SALES: string | null;
+  QTY_SOLD: string | null;
+  MARGIN: string | null;
   source_batch_id: string;
   loaded_at: string;
 }

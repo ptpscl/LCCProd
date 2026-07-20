@@ -172,7 +172,7 @@ export default function MmsUploadModal({ isOpen, onClose, onSuccess }: MmsUpload
                 className="w-full text-[13px] text-text-muted cursor-pointer disabled:opacity-50 file:mr-4 file:py-2 file:px-4 file:rounded-[8px] file:border-0 file:text-[13px] file:font-semibold file:bg-surface-bg file:text-text-main file:cursor-pointer hover:file:bg-border-subtle"
               />
               <p className="mt-2 text-[12px] text-text-muted">
-                The exact MMS header is checked here. Strict row validation runs during ingestion.
+                The exact MMS header is checked here. Source values are preserved in the Bronze layer for later anomaly checks.
               </p>
             </div>
           )}
