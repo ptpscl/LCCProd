@@ -39,6 +39,10 @@ const CUSTOMER_ANOMALY_RULES = [
   { id: 'birthday_age_mismatch', definition: 'Recorded age differs from the age implied by birthday by more than two years.', anomalyClass: '1B' },
 ] as const;
 
+type CustomerAnomalyRule = typeof CUSTOMER_ANOMALY_RULES[number];
+type CustomerReviewStatus = 'for-review' | 'reviewed' | 'all';
+type CustomerResolutionChoice = 'accept' | 'corrected';
+
 const EMPTY_STATS: CustomerSilverStats = {
   total_rows: 0,
   clean_rows: 0,
@@ -77,6 +81,7 @@ export default function CustomerSilverView() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
+  const [activeRule, setActiveRule] = useState<CustomerAnomalyRule | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
@@ -249,17 +254,45 @@ export default function CustomerSilverView() {
   }), [demoRows]);
 
   const reviewRule = (rule: typeof CUSTOMER_ANOMALY_RULES[number]) => {
-    const affectedRows = demoRows.filter(row =>
-      (row.original_quality_issues || row.quality_issues).includes(rule.id));
-    const reviewTarget = affectedRows.find(row => row.validation_status !== 'resolved')
-      || affectedRows[0];
     setPage(1);
     setStatusFilter('');
     setAnomalyClass('');
     setCustomerNumber('');
     setCustomerNumberInput('');
     setQualityIssue(rule.id);
-    if (reviewTarget) openReview(reviewTarget);
+    setActiveRule(rule);
+  };
+
+  const resolveSelectedRows = (rowIds: string[], resolution: CustomerResolutionChoice, auditNote: string) => {
+    const selectedIds = new Set(rowIds);
+    const selectedRows = demoRows.filter(row => selectedIds.has(row.id) && row.validation_status !== 'resolved');
+    const resolvedAt = new Date().toISOString();
+    const resolvedRows = selectedRows.map(row => ({
+      ...row,
+      original_anomaly_class: row.original_anomaly_class || row.anomaly_class,
+      original_quality_issues: row.original_quality_issues || [...row.quality_issues],
+      anomaly_class: '0',
+      validation_status: 'resolved',
+      quality_issues: [],
+      resolution_type: resolution,
+      resolution_note: auditNote,
+      resolved_by: 'Leonard Inciso',
+      resolved_at: resolvedAt,
+    }));
+    const resolutionsById = new Map(resolvedRows.map(row => [row.id, row]));
+    setDemoRows(previous => previous.map(row => resolutionsById.get(row.id) || row));
+    resolvedRows.forEach(saveCustomerDemoResolution);
+    const resolved1A = resolvedRows.filter(row => row.original_anomaly_class === '1A').length;
+    const resolved1B = resolvedRows.filter(row => row.original_anomaly_class === '1B').length;
+    setStats(previous => ({
+      ...previous,
+      flagged_rows: Math.max(0, previous.flagged_rows - resolvedRows.length),
+      resolved_rows: previous.resolved_rows + resolvedRows.length,
+      class_0_rows: previous.class_0_rows + resolvedRows.length,
+      class_1a_rows: Math.max(0, previous.class_1a_rows - resolved1A),
+      class_1b_rows: Math.max(0, previous.class_1b_rows - resolved1B),
+    }));
+    setNotice(`${resolvedRows.length} customer ${resolvedRows.length === 1 ? 'row' : 'rows'} resolved locally.`);
   };
 
   return <div className="space-y-6">
@@ -378,6 +411,98 @@ export default function CustomerSilverView() {
       <div className="px-5 py-4 border-t border-border-subtle flex justify-between items-center text-[12px] text-text-muted"><span>{total.toLocaleString()} matching rows</span><div className="flex items-center gap-3"><button disabled={page <= 1} onClick={() => changePage(page - 1)} className="h-8 px-3 border rounded-[5px] disabled:opacity-40">Previous</button><span>Page {page} of {pages}</span><button disabled={page >= pages} onClick={() => changePage(page + 1)} className="h-8 px-3 border rounded-[5px] disabled:opacity-40">Next</button></div></div>
     </div>
     {selectedRow && <ResolutionModal row={selectedRow} form={editForm} setForm={setEditForm} onClose={() => setSelectedRow(null)} onSave={saveResolution} />}
+    {activeRule && <CustomerReviewPanel rule={activeRule} rows={demoRows} onClose={() => setActiveRule(null)} onResolve={resolveSelectedRows} />}
+  </div>;
+}
+
+function CustomerReviewPanel({ rule, rows, onClose, onResolve }: {
+  rule: CustomerAnomalyRule;
+  rows: any[];
+  onClose: () => void;
+  onResolve: (rowIds: string[], resolution: CustomerResolutionChoice, auditNote: string) => void;
+}) {
+  const [status, setStatus] = useState<CustomerReviewStatus>('for-review');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [resolution, setResolution] = useState<CustomerResolutionChoice | ''>('');
+  const [auditNote, setAuditNote] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const affectedRows = rows.filter(row =>
+    (row.original_quality_issues || row.quality_issues).includes(rule.id));
+  const visibleRows = affectedRows.filter(row => status === 'all'
+    || (status === 'reviewed' ? row.validation_status === 'resolved' : row.validation_status !== 'resolved'));
+  const selectableRows = visibleRows.filter(row => row.validation_status !== 'resolved');
+  const allVisibleSelected = selectableRows.length > 0
+    && selectableRows.every(row => selectedIds.has(row.id));
+  const canResolve = selectedIds.size > 0 && Boolean(resolution) && Boolean(auditNote.trim());
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [onClose]);
+
+  const toggleRow = (rowId: string) => {
+    setConfirmation('');
+    setSelectedIds(current => {
+      const next = new Set(current);
+      if (next.has(rowId)) next.delete(rowId); else next.add(rowId);
+      return next;
+    });
+  };
+  const toggleAll = () => setSelectedIds(current => {
+    const next = new Set(current);
+    selectableRows.forEach(row => allVisibleSelected ? next.delete(row.id) : next.add(row.id));
+    return next;
+  });
+  const completeResolution = () => {
+    if (!canResolve || !resolution) return;
+    const ids = [...selectedIds];
+    onResolve(ids, resolution, auditNote.trim());
+    setSelectedIds(new Set());
+    setResolution('');
+    setAuditNote('');
+    setConfirmation(`${ids.length} ${ids.length === 1 ? 'row' : 'rows'} marked as reviewed.`);
+  };
+
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#111827]/55 p-4">
+    <section role="dialog" aria-modal="true" aria-labelledby="customer-review-title" className="flex h-[92vh] w-full max-w-[1480px] flex-col overflow-hidden rounded-[12px] border border-border-subtle bg-white shadow-2xl">
+      <header className="flex shrink-0 items-start justify-between gap-5 border-b border-border-subtle px-6 py-5">
+        <div><div className="mb-2 flex flex-wrap items-center gap-3"><span className="inline-flex rounded-full bg-silver-bg px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-silver-text">Customer anomaly review</span><span className="text-[12px] font-medium text-text-muted">{affectedRows.length} affected rows</span></div><h2 id="customer-review-title" className="font-mono text-[18px] font-semibold text-text-main">{rule.id}</h2><p className="mt-1 max-w-[900px] text-[13px] leading-5 text-text-muted">{rule.definition}</p></div>
+        <button type="button" onClick={onClose} aria-label="Close anomaly review" className="flex h-10 w-10 items-center justify-center rounded-full border border-border-subtle hover:bg-surface-bg"><X className="h-5 w-5 text-text-muted" /></button>
+      </header>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-border-subtle bg-surface-bg px-6 py-3">
+        <div className="flex items-center gap-2"><span className="mr-1 text-[12px] font-semibold text-text-main">Status</span>{([
+          ['for-review', 'For review'], ['reviewed', 'Reviewed'], ['all', 'All'],
+        ] as const).map(([value, label]) => <button key={value} type="button" onClick={() => { setStatus(value); setSelectedIds(new Set()); setConfirmation(''); }} className={`rounded-[7px] border px-4 py-2 text-[12px] font-semibold ${status === value ? 'border-brand-600 bg-brand-600 text-white' : 'border-border-subtle bg-white text-text-main hover:bg-brand-50'}`}>{label}</button>)}</div>
+        <p className="text-[12px] text-text-muted">{visibleRows.length} shown · {selectedIds.size} selected</p>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        <table className="min-w-[1450px] w-full border-collapse text-left">
+          <thead className="sticky top-0 z-10 bg-surface-bg shadow-[0_1px_0_#E4E9F0]"><tr>
+            <th className="w-12 px-4 py-3"><input type="checkbox" checked={allVisibleSelected} disabled={!selectableRows.length} onChange={toggleAll} className="h-4 w-4 accent-[#0054A6]" /></th>
+            {['Customer Number', 'Gender', 'Birthday', 'Age', 'City', 'Province', 'Last Visit', 'Class', 'Status', 'Quality Issues', 'Resolved By', 'Resolved At'].map(label => <th key={label} className="whitespace-nowrap px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-text-muted">{label}</th>)}
+          </tr></thead>
+          <tbody className="divide-y divide-border-subtle">{visibleRows.map(row => <tr key={row.id} className={selectedIds.has(row.id) ? 'bg-brand-50/70' : 'bg-white hover:bg-surface-bg'}>
+            <td className="px-4 py-4"><input type="checkbox" checked={selectedIds.has(row.id)} disabled={row.validation_status === 'resolved'} onChange={() => toggleRow(row.id)} className="h-4 w-4 accent-[#0054A6] disabled:opacity-40" /></td>
+            <td className="whitespace-nowrap px-4 py-4 font-mono text-[12px]">{row['CUSTOMER NUMBER'] || '—'}</td><td className="px-4 py-4 text-[12px]">{row.GENDER || '—'}</td><td className="whitespace-nowrap px-4 py-4 text-[12px]">{row.BIRTHDAY || '—'}</td><td className="px-4 py-4 text-[12px]">{row.AGE ?? '—'}</td><td className="whitespace-nowrap px-4 py-4 text-[12px]">{row.CITY || '—'}</td><td className="whitespace-nowrap px-4 py-4 text-[12px]">{row.PROVINCE || '—'}</td><td className="whitespace-nowrap px-4 py-4 text-[12px]">{row['LAST VISIT'] || '—'}</td><td className="px-4 py-4"><ClassBadge value={row.original_anomaly_class || row.anomaly_class} /></td><td className="px-4 py-4"><StatusBadge status={row.validation_status} /></td>
+            <td className="max-w-[280px] px-4 py-4 text-[11px] text-amber-800">{(row.original_quality_issues || row.quality_issues).map((issue: string) => issue.replaceAll('_', ' ')).join(', ')}</td><td className="whitespace-nowrap px-4 py-4 text-[12px] text-text-muted">{row.resolved_by || '—'}</td><td className="whitespace-nowrap px-4 py-4 text-[12px] text-text-muted">{row.resolved_at ? new Date(row.resolved_at).toLocaleString() : '—'}</td>
+          </tr>)}{!visibleRows.length && <tr><td colSpan={13} className="px-6 py-16 text-center text-[13px] text-text-muted">No customer rows match this status.</td></tr>}</tbody>
+        </table>
+      </div>
+      <footer className="shrink-0 border-t border-border-subtle bg-white px-6 py-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(240px,0.7fr)_minmax(360px,1.3fr)_auto] lg:items-end">
+          <label className="text-[12px] font-semibold text-text-main">Resolution<select value={resolution} onChange={event => setResolution(event.target.value as CustomerResolutionChoice | '')} disabled={!selectedIds.size} className="mt-1.5 h-10 w-full rounded-[7px] border border-border-subtle bg-white px-3 text-[13px] font-normal disabled:bg-surface-bg"><option value="">Choose a resolution</option><option value="accept">Accept as valid</option><option value="corrected">Data corrected</option></select></label>
+          <label className="text-[12px] font-semibold text-text-main">Audit note <span className="text-error">*</span><input value={auditNote} onChange={event => setAuditNote(event.target.value)} disabled={!selectedIds.size} placeholder="Explain why this resolution is appropriate" className="mt-1.5 h-10 w-full rounded-[7px] border border-border-subtle px-3 text-[13px] font-normal disabled:bg-surface-bg" /></label>
+          <button type="button" onClick={completeResolution} disabled={!canResolve} className="inline-flex h-10 items-center justify-center rounded-[7px] bg-brand-600 px-5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"><CheckCircle2 className="mr-2 h-4 w-4" />Complete resolution</button>
+        </div>
+        <div className="mt-2 flex min-h-5 items-center justify-between text-[11px] text-text-muted"><p>Selections are limited to rows in this anomaly type. An audit note is required.</p>{confirmation && <p className="font-semibold text-success">{confirmation}</p>}</div>
+      </footer>
+    </section>
   </div>;
 }
 
