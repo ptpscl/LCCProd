@@ -69,7 +69,6 @@ export default function CustomerSilverView() {
           return true;
         });
         const start = (targetPage - 1) * pageSize;
-        setStats(CUSTOMER_SILVER_DEMO_STATS);
         setRun(null);
         setRows(filtered.slice(start, start + pageSize));
         setTotal(filtered.length);
@@ -160,6 +159,7 @@ export default function CustomerSilverView() {
 
   const saveResolution = () => {
     if (!selectedRow) return;
+    const previousClass = selectedRow.anomaly_class;
     setDemoRows(previous => previous.map(row => row.id === selectedRow.id ? {
       ...row,
       'CUSTOMER NUMBER': editForm.customer_number.trim(),
@@ -169,10 +169,23 @@ export default function CustomerSilverView() {
       CITY: editForm.city.trim() || null,
       PROVINCE: editForm.province.trim() || null,
       'LAST VISIT': editForm.last_visit || null,
+      anomaly_class: '0',
       validation_status: 'resolved',
+      original_quality_issues: row.original_quality_issues || [...row.quality_issues],
+      quality_issues: [],
       resolution_note: editForm.resolution_note.trim(),
       resolved_at: new Date().toISOString(),
     } : row));
+    if (previousClass !== '0') {
+      setStats(previous => ({
+        ...previous,
+        clean_rows: previous.clean_rows + 1,
+        flagged_rows: Math.max(0, previous.flagged_rows - 1),
+        class_0_rows: previous.class_0_rows + 1,
+        class_1a_rows: previousClass === '1A' ? Math.max(0, previous.class_1a_rows - 1) : previous.class_1a_rows,
+        class_1b_rows: previousClass === '1B' ? Math.max(0, previous.class_1b_rows - 1) : previous.class_1b_rows,
+      }));
+    }
     setSelectedRow(null);
     setNotice('Prototype resolution saved locally. No database record was changed.');
   };
@@ -270,7 +283,7 @@ function ResolutionModal({ row, form, setForm, onClose, onSave }: { row: any; fo
   const field = (key: string, label: string, type = 'text') => <label className="text-[12px] font-semibold text-text-muted">{label}<input type={type} value={form[key] || ''} onChange={event => setForm({ ...form, [key]: event.target.value })} className="mt-2 w-full h-10 px-3 rounded-[6px] border border-border-subtle text-[13px] text-text-main font-normal" /></label>;
   return <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-6" onMouseDown={onClose}><div className="w-full max-w-[760px] max-h-[90vh] overflow-y-auto bg-white rounded-[12px] shadow-xl" onMouseDown={event => event.stopPropagation()}>
     <div className="px-6 py-5 border-b border-border-subtle flex justify-between items-start"><div><h3 className="text-[18px] font-semibold">Review and resolve Customer row</h3><p className="text-[12px] text-text-muted mt-1">Prototype only — changes stay in this browser session.</p></div><button onClick={onClose}><X className="w-5 h-5 text-text-muted" /></button></div>
-    <div className="p-6 space-y-6"><div className="rounded-[8px] border border-amber-200 bg-amber-50 p-4"><p className="text-[12px] font-semibold text-amber-900">Detected issues</p><div className="flex flex-wrap gap-2 mt-2">{row.quality_issues.map((issue: string) => <span key={issue} className="px-2 py-1 bg-white border border-amber-200 rounded-full text-[11px] text-amber-800">{issue.replaceAll('_', ' ')}</span>)}</div></div>
+    <div className="p-6 space-y-6"><div className="rounded-[8px] border border-amber-200 bg-amber-50 p-4"><p className="text-[12px] font-semibold text-amber-900">{row.validation_status === 'resolved' ? 'Original detected issues' : 'Detected issues'}</p><div className="flex flex-wrap gap-2 mt-2">{(row.original_quality_issues || row.quality_issues).map((issue: string) => <span key={issue} className="px-2 py-1 bg-white border border-amber-200 rounded-full text-[11px] text-amber-800">{issue.replaceAll('_', ' ')}</span>)}</div></div>
       <div className="grid grid-cols-2 gap-4">{field('customer_number', 'Customer number')}{field('gender', 'Gender')}{field('birthday', 'Birthday', 'date')}{field('age', 'Age', 'number')}{field('city', 'City')}{field('province', 'Province')}{field('last_visit', 'Last visit', 'date')}</div>
       <label className="text-[12px] font-semibold text-text-muted block">Resolution note<textarea value={form.resolution_note || ''} onChange={event => setForm({ ...form, resolution_note: event.target.value })} placeholder="Describe what was reviewed or corrected" className="mt-2 w-full min-h-[90px] p-3 rounded-[6px] border border-border-subtle text-[13px] font-normal" /></label>
     </div>
