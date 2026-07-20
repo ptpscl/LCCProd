@@ -27,11 +27,17 @@ def get_batch(batch_id: str) -> dict | None:
         logger.error(f"Failed to get batch {batch_id}: {e}")
         raise RuntimeError(f"Could not retrieve batch {batch_id}") from e
 
-def update_batch(batch_id: str, row_count: int | None, status: str):
+def update_batch(batch_id: str, row_count: int | None, status: str,
+                 file_row_count: int | None = None,
+                 duplicates_skipped: int | None = None):
     try:
         update_data = {"status": status}
         if row_count is not None:
             update_data["row_count"] = row_count
+        if file_row_count is not None:
+            update_data["file_row_count"] = file_row_count
+        if duplicates_skipped is not None:
+            update_data["duplicates_skipped"] = duplicates_skipped
 
         _supabase_client.table('sku_batches').update(update_data).eq('id', batch_id).execute()
     except Exception as e:

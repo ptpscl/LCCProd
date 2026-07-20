@@ -85,3 +85,13 @@ ALTER TABLE bronze_sku_hierarchy
 CREATE UNIQUE INDEX uq_bronze_sku_hierarchy_row_hash ON bronze_sku_hierarchy (row_hash);
 
 NOTIFY pgrst, 'reload schema';
+
+-- ==========================================
+-- Migration 3: per-batch ingest details
+-- (already executed in Supabase SQL Editor)
+-- ==========================================
+ALTER TABLE sku_batches
+  ADD COLUMN file_row_count INTEGER,
+  ADD COLUMN duplicates_skipped INTEGER;
+
+NOTIFY pgrst, 'reload schema';
