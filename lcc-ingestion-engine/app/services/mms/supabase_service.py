@@ -68,7 +68,11 @@ def update_batch(batch_id: str, row_count: int | None, status: str) -> None:
         raise RuntimeError(f"Could not update MMS batch {batch_id}") from exc
 
 
-def update_batch_meta(batch_id: str, store_code: str, year_month: str) -> None:
+def update_batch_meta(
+    batch_id: str,
+    store_code: Optional[str],
+    year_month: Optional[str],
+) -> None:
     try:
         (
             get_client()
@@ -83,8 +87,12 @@ def update_batch_meta(batch_id: str, store_code: str, year_month: str) -> None:
 
 
 def check_existing_ingested_batch(
-    batch_id: str, store_code: str, year_month: str
+    batch_id: str,
+    store_code: Optional[str],
+    year_month: Optional[str],
 ) -> str | None:
+    if store_code is None or year_month is None:
+        return None
     try:
         response = (
             get_client()
@@ -229,6 +237,7 @@ def fetch_bronze_rows(
         response = (
             query.order("DATE", desc=False)
             .order("TRANSACTION_NUMBER", desc=False)
+            .order("id", desc=False)
             .range(offset, offset + limit - 1)
             .execute()
         )
