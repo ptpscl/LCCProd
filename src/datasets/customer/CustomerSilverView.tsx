@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, FileSearch, Loader2, Pencil, Play, Search, X } from 'lucide-react';
+import { CheckCircle2, Download, FileSearch, Pencil, RefreshCw, Search, ShieldCheck, X } from 'lucide-react';
 
 import {
   CustomerSilverRun,
@@ -7,7 +7,6 @@ import {
   getCustomerSilverRows,
   getCustomerSilverRun,
   getCustomerSilverStats,
-  startCustomerSilverProcessing,
 } from './customerService';
 import {
   CUSTOMER_SILVER_DEMO_ROWS,
@@ -79,6 +78,8 @@ export default function CustomerSilverView() {
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
   const pageSize = 20;
 
   const load = async (targetPage = page) => {
@@ -143,14 +144,31 @@ export default function CustomerSilverView() {
     return () => window.clearInterval(timer);
   }, [run?.id, run?.status]);
 
-  const processSilver = async () => {
-    if (DEMO_MODE) return;
-    setError(null);
-    try {
-      setRun(await startCustomerSilverProcessing());
-    } catch (caught: any) {
-      setError(caught.message || 'Failed to start Customer Silver processing');
-    }
+  const refreshSummary = () => {
+    setRefreshing(true);
+    void load(1).finally(() => {
+      setLastRefreshedAt(new Date());
+      window.setTimeout(() => setRefreshing(false), 250);
+    });
+  };
+
+  const downloadAnomalies = () => {
+    const columns = ['CUSTOMER NUMBER', 'GENDER', 'BIRTHDAY', 'AGE', 'CITY', 'PROVINCE', 'LAST VISIT', 'anomaly_class', 'validation_status', 'quality_issues'];
+    const csvCell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const anomalyRows = demoRows.filter(row => row.validation_status !== 'clean');
+    const records = anomalyRows.map(row => columns.map(column =>
+      csvCell(column === 'quality_issues'
+        ? (row.original_quality_issues || row.quality_issues).join(' | ')
+        : row[column])).join(','));
+    const blob = new Blob([`\uFEFF${[columns.map(csvCell).join(','), ...records].join('\n')}`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'customer_silver_anomaly_samples.csv';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   };
 
   const applyCustomerNumber = () => {
@@ -200,6 +218,7 @@ export default function CustomerSilverView() {
       original_quality_issues: selectedRow.original_quality_issues || [...selectedRow.quality_issues],
       quality_issues: [],
       resolution_note: editForm.resolution_note.trim(),
+      resolved_by: 'Leonard Inciso',
       resolved_at: new Date().toISOString(),
     };
     setDemoRows(previous => previous.map(row => row.id === selectedRow.id ? resolvedRow : row));
@@ -218,7 +237,6 @@ export default function CustomerSilverView() {
     setNotice('Prototype resolution saved locally. No database record was changed.');
   };
 
-  const processing = !!run && ['queued', 'processing'].includes(run.status);
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const ruleSummary = useMemo(() => CUSTOMER_ANOMALY_RULES.map(rule => {
     const affectedRows = demoRows.filter(row =>
@@ -249,30 +267,34 @@ export default function CustomerSilverView() {
     {error && <div className="px-4 py-3 rounded-[8px] border border-red-200 bg-red-50 text-red-800 text-[13px]">{error}</div>}
     {notice && <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-[8px] border border-green-200 bg-green-50 text-green-800 text-[13px] shadow-lg">{notice}</div>}
 
-    <div className="flex items-center justify-between">
-      <div>
-        <h2 className="text-[18px] font-semibold text-text-main">Silver Customer Data</h2>
-        <p className="text-[13px] text-text-muted mt-1">Typed customer records with traceable data-quality flags.</p>
+    <section className="overflow-hidden rounded-[10px] border border-border-subtle border-t-[3px] border-t-silver-accent bg-white shadow-subtle">
+      <div className="flex flex-wrap items-center justify-between gap-5 px-6 py-5">
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-silver-bg text-silver-text"><ShieldCheck className="h-6 w-6" /></div>
+          <div>
+            <h3 className="text-[16px] font-semibold text-text-main">Customer validation summary</h3>
+            <p className="mt-1 text-[13px] text-text-muted">Customer database · 0 / 1A / 1B anomaly classification</p>
+            <p className="mt-1 text-[11px] text-text-muted">Refreshed {lastRefreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={refreshSummary} className="inline-flex h-9 items-center rounded-[8px] border border-border-subtle bg-white px-4 text-[12px] font-semibold text-text-main hover:bg-surface-bg"><RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />Refresh</button>
+          <button type="button" onClick={downloadAnomalies} className="inline-flex h-9 items-center rounded-[8px] bg-brand-600 px-4 text-[12px] font-semibold text-white hover:bg-brand-700"><Download className="mr-2 h-4 w-4" />Download anomalies CSV</button>
+        </div>
       </div>
-      <button onClick={() => void processSilver()} disabled={processing || DEMO_MODE}
-        className="inline-flex items-center h-10 px-4 rounded-[7px] bg-[#64748B] hover:bg-[#526173] text-white text-[13px] font-semibold disabled:opacity-60">
-        {processing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-        {DEMO_MODE ? 'Backend connection pending' : processing ? 'Processing Silver...' : stats.total_rows ? 'Refresh from Bronze' : 'Process Bronze to Silver'}
-      </button>
-    </div>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
-      {[
-        ['Total Silver Rows', stats.total_rows, 'text-text-main'],
-        ['Clean', stats.clean_rows, 'text-green-700'],
-        ['Resolved', stats.resolved_rows, 'text-blue-700'],
-        ['Class 1A · Province', stats.class_1a_rows, 'text-amber-600'],
-        ['Class 1B · Anomaly', stats.class_1b_rows, 'text-red-700'],
-      ].map(([label, value, color]) => <div key={String(label)} className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-6">
-        <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-2">{label}</h3>
-        <p className={`text-[28px] font-bold ${color}`}>{loading ? '-' : Number(value).toLocaleString()}</p>
-      </div>)}
-    </div>
+      <div className="grid border-t border-border-subtle sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ['Customer Rows Checked', stats.total_rows, 'All source rows classified'],
+          ['Rows for Review', stats.flagged_rows, `Class 1A: ${stats.class_1a_rows.toLocaleString()} · Class 1B: ${stats.class_1b_rows.toLocaleString()}`],
+          ['Resolved', stats.resolved_rows, 'Human-reviewed rows reclassified to 0'],
+          ['Clean', stats.clean_rows, 'Automatically clean rows'],
+        ].map(([label, value, note], index) => <div key={String(label)} className={`px-6 py-5 ${index > 0 ? 'border-l border-border-subtle' : ''}`}>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">{label}</p>
+          <p className="mt-2 text-[26px] font-semibold tabular-nums text-text-main">{loading ? '-' : Number(value).toLocaleString()}</p>
+          <p className="mt-1 text-[11px] text-text-muted">{note}</p>
+        </div>)}
+      </div>
+    </section>
 
     {run && <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle px-6 py-4 flex items-center justify-between gap-6">
       <div><p className="text-[13px] font-semibold">Latest processing run</p><p className="text-[12px] text-text-muted mt-1">Started {new Date(run.started_at || run.created_at).toLocaleString()}</p>{run.error_message && <p className="text-[12px] text-red-700 mt-2 break-all">{run.error_message}</p>}</div>
@@ -376,12 +398,12 @@ function ClassBadge({ value }: { value: string }) {
 
 function ResolutionModal({ row, form, setForm, onClose, onSave }: { row: any; form: Record<string, string>; setForm: (value: Record<string, string>) => void; onClose: () => void; onSave: () => void }) {
   const field = (key: string, label: string, type = 'text') => <label className="text-[12px] font-semibold text-text-muted">{label}<input type={type} value={form[key] || ''} onChange={event => setForm({ ...form, [key]: event.target.value })} className="mt-2 w-full h-10 px-3 rounded-[6px] border border-border-subtle text-[13px] text-text-main font-normal" /></label>;
-  return <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-6" onMouseDown={onClose}><div className="w-full max-w-[760px] max-h-[90vh] overflow-y-auto bg-white rounded-[12px] shadow-xl" onMouseDown={event => event.stopPropagation()}>
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={onClose}><div role="dialog" aria-modal="true" className="flex max-h-[92vh] w-full max-w-[1120px] flex-col overflow-hidden rounded-[12px] border border-border-subtle bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()}>
     <div className="px-6 py-5 border-b border-border-subtle flex justify-between items-start"><div><h3 className="text-[18px] font-semibold">Review and resolve Customer row</h3><p className="text-[12px] text-text-muted mt-1">Prototype only — changes stay in this browser session.</p></div><button onClick={onClose}><X className="w-5 h-5 text-text-muted" /></button></div>
-    <div className="p-6 space-y-6"><div className="rounded-[8px] border border-amber-200 bg-amber-50 p-4"><p className="text-[12px] font-semibold text-amber-900">{row.validation_status === 'resolved' ? 'Original detected issues' : 'Detected issues'}</p><div className="flex flex-wrap gap-2 mt-2">{(row.original_quality_issues || row.quality_issues).map((issue: string) => <span key={issue} className="px-2 py-1 bg-white border border-amber-200 rounded-full text-[11px] text-amber-800">{issue.replaceAll('_', ' ')}</span>)}</div></div>
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-6"><div className="rounded-[8px] border border-amber-200 bg-amber-50 p-4"><p className="text-[12px] font-semibold text-amber-900">{row.validation_status === 'resolved' ? 'Original detected issues' : 'Detected issues'}</p><div className="flex flex-wrap gap-2 mt-2">{(row.original_quality_issues || row.quality_issues).map((issue: string) => <span key={issue} className="px-2 py-1 bg-white border border-amber-200 rounded-full text-[11px] text-amber-800">{issue.replaceAll('_', ' ')}</span>)}</div></div>
       <div className="grid grid-cols-2 gap-4">{field('customer_number', 'Customer number')}{field('gender', 'Gender')}{field('birthday', 'Birthday', 'date')}{field('age', 'Age', 'number')}{field('city', 'City')}{field('province', 'Province')}{field('last_visit', 'Last visit', 'date')}</div>
-      <label className="text-[12px] font-semibold text-text-muted block">Resolution note<textarea value={form.resolution_note || ''} onChange={event => setForm({ ...form, resolution_note: event.target.value })} placeholder="Describe what was reviewed or corrected" className="mt-2 w-full min-h-[90px] p-3 rounded-[6px] border border-border-subtle text-[13px] font-normal" /></label>
+      <label className="text-[12px] font-semibold text-text-muted block">Audit note <span className="text-error">*</span><textarea value={form.resolution_note || ''} onChange={event => setForm({ ...form, resolution_note: event.target.value })} placeholder="Explain what was reviewed or corrected" className="mt-2 w-full min-h-[90px] p-3 rounded-[6px] border border-border-subtle text-[13px] font-normal" /></label>
     </div>
-    <div className="px-6 py-4 border-t border-border-subtle flex justify-end gap-3"><button onClick={onClose} className="h-10 px-4 rounded-[6px] border border-border-subtle text-[13px]">Cancel</button><button onClick={onSave} className="h-10 px-4 rounded-[6px] bg-[#0054A6] text-white text-[13px] font-semibold inline-flex items-center"><CheckCircle2 className="w-4 h-4 mr-2" />Save as resolved</button></div>
+    <div className="shrink-0 px-6 py-4 border-t border-border-subtle flex items-center justify-between gap-3"><p className="text-[11px] text-text-muted">Resolution reclassifies the row to class 0 while retaining its original issues for audit.</p><div className="flex gap-3"><button onClick={onClose} className="h-10 px-4 rounded-[6px] border border-border-subtle text-[13px]">Cancel</button><button onClick={onSave} disabled={!form.resolution_note?.trim()} className="h-10 px-4 rounded-[6px] bg-[#0054A6] text-white text-[13px] font-semibold inline-flex items-center disabled:cursor-not-allowed disabled:opacity-45"><CheckCircle2 className="w-4 h-4 mr-2" />Complete resolution</button></div></div>
   </div></div>;
 }
