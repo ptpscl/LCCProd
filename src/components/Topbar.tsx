@@ -23,6 +23,15 @@ export default function Topbar({ currentView, onUploadClick }: TopbarProps) {
   let statusTag = null;
   let isBronze = false;
 
+  if (currentView === 'gold/stage-b') {
+    title = 'Gold / Stage B (Loyalty + Customer DB + MMS)';
+    statusTag = (
+      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase bg-gold-bg text-gold-text">
+        clean
+      </span>
+    );
+  }
+
   if (currentView === 'silver/stage-b') {
     title = 'Silver / Stage B (Loyalty + Customer DB + MMS)';
     statusTag = (
