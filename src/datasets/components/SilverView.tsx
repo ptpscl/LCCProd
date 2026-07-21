@@ -3,9 +3,11 @@ import CustomerSilverView from '../customer/CustomerSilverView';
 import MmsSilverView from '../mms/MmsSilverView';
 import StageBSilverView from '../stageB/StageBSilverView';
 import StageCSilverView from '../stageC/StageCSilverView';
+import LoyaltySilverView from '../loyalty/LoyaltySilverView';
 
 export default function SilverView({ datasetId }: { datasetId: string }) {
   if (datasetId === 'customer-database') return <CustomerSilverView />;
+  if (datasetId === 'loyalty-sales') return <LoyaltySilverView />;
   if (datasetId === 'sku-hierarchy') {
     return <SkuSilverView />;
   }
