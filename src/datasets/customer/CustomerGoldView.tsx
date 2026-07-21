@@ -32,9 +32,6 @@ export default function CustomerGoldView() {
   };
 
   const clear = () => { setOrigin(''); setCity(''); setProvince(''); setSearchInput(''); setCustomerNumber(''); };
-  const cleanCount = CUSTOMER_GOLD_DEMO_ROWS.filter(row => row.record_origin === 'clean').length;
-  const resolvedCount = CUSTOMER_GOLD_DEMO_ROWS.filter(row => row.record_origin === 'resolved').length;
-
   return <div className="space-y-6">
     <div className="px-4 py-3 rounded-[8px] border border-amber-200 bg-amber-50 text-amber-900 text-[13px] flex items-center justify-between"><span><strong>Gold prototype:</strong> dummy trusted records demonstrate how previous Silver issues appear after resolution.</span><span className="px-2 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">Read-only demo</span></div>
 
@@ -50,10 +47,10 @@ export default function CustomerGoldView() {
     </div>
 
     <div className="grid grid-cols-4 gap-6">{[
-      ['Trusted Customers', CUSTOMER_GOLD_DEMO_ROWS.length, 'text-text-main'],
-      ['Clean from Silver', cleanCount, 'text-green-700'],
-      ['Resolved from Silver', resolvedCount, 'text-blue-700'],
-      ['Duplicates Consolidated', 1, 'text-amber-700'],
+      ['Trusted Customers', reliabilityStats.trusted, 'text-text-main'],
+      ['Clean from Silver', reliabilityStats.clean, 'text-green-700'],
+      ['Resolved from Silver', reliabilityStats.resolved, 'text-blue-700'],
+      ['Still Blocked', reliabilityStats.blocked, 'text-amber-700'],
     ].map(([label, value, color]) => <div key={String(label)} className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-6"><h3 className="text-[12px] font-semibold text-text-muted uppercase tracking-wider mb-2">{label}</h3><p className={`text-[28px] font-bold ${color}`}>{Number(value).toLocaleString()}</p></div>)}</div>
 
     <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-5"><div className="flex items-start gap-3"><ShieldCheck className="w-5 h-5 text-[#B58A00] mt-0.5" /><div><h3 className="text-[14px] font-semibold">Gold winner priority</h3><p className="text-[12px] text-text-muted mt-1">Resolved record → record with province → latest visit → newest source batch. Unresolved Silver rows never enter Gold.</p></div></div></div>
