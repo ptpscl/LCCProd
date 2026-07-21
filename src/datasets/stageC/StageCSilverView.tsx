@@ -67,6 +67,29 @@ function ReviewModal({
   const allVisibleSelected = selectableRows.length > 0 && selectableRows.every(r => selectedIds.has(r.id));
   const canResolve = selectedIds.size > 0 && Boolean(resolution) && Boolean(auditNote.trim());
 
+  // Which SKU codes are in the current selection — only meaningful for SKU_SALES_UNMATCHED,
+  // since that's the only flag where there's no matchedSku record to fall back on.
+  const selectedUnmatchedSkuCodes = useMemo(() => {
+    if (flag !== 'SKU_SALES_UNMATCHED') return [];
+    const codes = new Set<string>();
+    groupRows.forEach(row => {
+      if (selectedIds.has(row.id)) codes.add(row.transaction.SKU_CODE);
+    });
+    return [...codes];
+  }, [flag, groupRows, selectedIds]);
+
+  // SKU_SALES_UNMATCHED has exactly one valid resolution — there's no matched SKU to
+  // accept or exclude, so selecting rows locks the resolution and pre-fills the audit
+  // note with the missing SKU codes instead of asking the reviewer to pick from a menu.
+  useEffect(() => {
+    if (flag === 'SKU_SALES_UNMATCHED' && selectedIds.size > 0) {
+      setResolution('Alert Data Manager');
+      setAuditNote(prev => prev.trim()
+        ? prev
+        : `Unmatched SKU code(s) not found in hierarchy: ${selectedUnmatchedSkuCodes.join(', ')}. Requesting upload of SKU details.`);
+    }
+  }, [flag, selectedIds, selectedUnmatchedSkuCodes]);
+
   const toggleRow = (id: string) => setSelectedIds(current => {
     const next = new Set(current);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -84,7 +107,9 @@ function ReviewModal({
     setSelectedIds(new Set());
     setResolution('');
     setAuditNote('');
-    setConfirmation(`${ids.length} ${ids.length === 1 ? 'row' : 'rows'} marked as reviewed.`);
+    setConfirmation(flag === 'SKU_SALES_UNMATCHED'
+      ? `Data manager alerted for ${ids.length} ${ids.length === 1 ? 'transaction' : 'transactions'}.`
+      : `${ids.length} ${ids.length === 1 ? 'row' : 'rows'} marked as reviewed.`);
   };
 
   const summary = RELATIONAL_FLAG_SUMMARY.find(item => item.flag === flag)!;
@@ -157,19 +182,34 @@ function ReviewModal({
 
         {flag !== 'SKU_SALES_MATCHED' && (
           <footer className="shrink-0 border-t border-border-subtle bg-white px-6 py-4">
+            {flag === 'SKU_SALES_UNMATCHED' && selectedUnmatchedSkuCodes.length > 0 && (
+              <div className="mb-3 rounded-[6px] border border-amber-200 bg-amber-50 px-3 py-2">
+                <p className="text-[11px] font-medium text-amber-800">
+                  This will alert the data manager to upload SKU details for: {selectedUnmatchedSkuCodes.join(', ')}
+                </p>
+              </div>
+            )}
             <div className="grid gap-4 lg:grid-cols-[minmax(220px,0.7fr)_minmax(320px,1.3fr)_auto] lg:items-end">
-              <label className="text-[12px] font-semibold text-text-muted">Resolution
-                <select value={resolution} onChange={e => setResolution(e.target.value as ResolutionChoice | '')} disabled={selectedIds.size === 0} className="mt-2 h-10 w-full rounded-[6px] border border-border-subtle bg-white px-3 text-[13px] font-normal text-text-main outline-none focus:border-brand-600 disabled:bg-surface-bg disabled:opacity-60">
-                  <option value="">Choose a resolution</option>
-                  <option value="Accept as Valid">Accept as Valid</option>
-                  <option value="Exclude from Output">Exclude from Output</option>
-                </select>
-              </label>
+              {flag === 'SKU_SALES_UNMATCHED' ? (
+                <div className="text-[12px] font-semibold text-text-muted">Resolution
+                  <div className="mt-2 flex h-10 w-full items-center rounded-[6px] border border-amber-200 bg-amber-50 px-3 text-[13px] font-medium text-amber-800">
+                    Alert Data Manager
+                  </div>
+                </div>
+              ) : (
+                <label className="text-[12px] font-semibold text-text-muted">Resolution
+                  <select value={resolution} onChange={e => setResolution(e.target.value as ResolutionChoice | '')} disabled={selectedIds.size === 0} className="mt-2 h-10 w-full rounded-[6px] border border-border-subtle bg-white px-3 text-[13px] font-normal text-text-main outline-none focus:border-brand-600 disabled:bg-surface-bg disabled:opacity-60">
+                    <option value="">Choose a resolution</option>
+                    <option value="Accept as Valid">Accept as Valid</option>
+                    <option value="Exclude from Output">Exclude from Output</option>
+                  </select>
+                </label>
+              )}
               <label className="text-[12px] font-semibold text-text-muted">Audit note <span className="text-error">*</span>
                 <input type="text" value={auditNote} onChange={e => setAuditNote(e.target.value)} disabled={selectedIds.size === 0} placeholder="Explain why this resolution is appropriate" className="mt-2 h-10 w-full rounded-[6px] border border-border-subtle px-3 text-[13px] font-normal text-text-main outline-none placeholder:text-gray-400 focus:border-brand-600 disabled:bg-surface-bg disabled:opacity-60" />
               </label>
               <button type="button" onClick={completeResolution} disabled={!canResolve} className="inline-flex h-10 items-center justify-center rounded-[6px] bg-[#0054A6] px-4 text-[13px] font-semibold text-white hover:bg-[#004385] focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:cursor-not-allowed disabled:opacity-50">
-                <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />Complete resolution
+                <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />{flag === 'SKU_SALES_UNMATCHED' ? 'Send alert' : 'Complete resolution'}
               </button>
             </div>
             {confirmation && <p role="status" className="mt-2 text-[11px] font-medium text-green-800">{confirmation}</p>}
@@ -298,7 +338,7 @@ export default function StageCSilverView() {
 
       <section className="flex items-start gap-3 rounded-[10px] border border-border-subtle bg-white px-6 py-4 shadow-subtle">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
-        <p className="text-[12px] leading-5 text-text-muted">SKU_SALES_MATCHED transactions require no action — they already have full division/category/brand attribution. UNMATCHED and DROPPED_SKU_TRANSACTION rows require a resolution and audit note before they're considered Stage-C-complete.</p>
+        <p className="text-[12px] leading-5 text-text-muted">SKU_SALES_MATCHED transactions require no action — they already have full division/category/brand attribution. UNMATCHED rows automatically alert the data manager to upload the missing SKU details. DROPPED_SKU_TRANSACTION rows require a resolution and audit note before they're considered Stage-C-complete.</p>
       </section>
 
       {activeFlag && <ReviewModal flag={activeFlag} rows={rows} onClose={() => setActiveFlag(null)} onResolve={resolve} />}

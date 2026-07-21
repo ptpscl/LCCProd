@@ -108,6 +108,7 @@ export interface DemoResolution {
   family_type: 'DUP' | 'VARIANT' | 'PROMO';
   action: 'merge' | 'confirm_variants' | 'link_promo' | 'keep';
   canonical_sku_code?: string;
+  excluded_members?: string[]; // SKU codes isolated out of this family — kept separate, treated as still-pending
   audit_note: string;
   resolved_by: string;
   resolved_at: string;
@@ -165,7 +166,9 @@ export function deriveGold() {
   const mergedAway = new Set<string>();
   const mergedInto: Record<string, string> = {};
   for (const m of merges) {
+    const excluded = new Set(m.excluded_members || []);
     for (const sku of DEMO_SILVER.filter(s => s.dup_family_id === m.family_id)) {
+      if (excluded.has(sku.sku_code)) continue; // isolated — not part of this merge
       if (sku.sku_code !== m.canonical_sku_code) {
         mergedAway.add(sku.sku_code);
         mergedInto[sku.sku_code] = m.canonical_sku_code!;
