@@ -34,6 +34,24 @@ export const STAGE_A_ANOMALY_SUMMARY = [
   { anomaly: 'NEGATIVE_LOYALTY_SALES', affected: 662, percentage: '0.0023%', definition: 'Loyalty sales amount is below zero.' },
 ] as const;
 
+const DATASET_ONLY_FLAGS = new Set(['DUPLICATES', 'NEGATIVE_QTY', 'NEGATIVE_LOYALTY_SALES']);
+
+export const STAGE_A_RELATIONAL_FLAG_SUMMARY = STAGE_A_ANOMALY_SUMMARY.filter(item =>
+  !DATASET_ONLY_FLAGS.has(item.anomaly));
+
+export const STAGE_A_DATASET_ANOMALY_SUMMARY = STAGE_A_ANOMALY_SUMMARY.filter(item =>
+  DATASET_ONLY_FLAGS.has(item.anomaly));
+
+export function getStageADatasetOnlyFlags(row: StageARow): string {
+  const flags = row.datasetAnomaly.split('|').filter(flag => DATASET_ONLY_FLAGS.has(flag));
+  return flags.length ? flags.join('|') : 'NONE';
+}
+
+export function getStageARelationalFlags(row: StageARow): string {
+  const flags = row.datasetAnomaly.split('|').filter(flag => flag !== 'NONE' && !DATASET_ONLY_FLAGS.has(flag));
+  return flags.length ? flags.join('|') : 'NONE';
+}
+
 const loyalty = (txn: string, customer: string, sku: string, sales: string, qty: string, type = 'REGULAR SALE') => ({
   DATE: '2025-01-04', 'TRANSACTION NUMBER': txn, 'REGISTER NUMBER': '13', 'STORE CODE': '417', 'CUSTOMER NUMBER': customer,
   'SKU CODE': sku, 'TRANSACTION TYPE': type, 'LOYALTY SALES': sales, 'QTY SOLD': qty,
