@@ -1,10 +1,9 @@
 import CustomerGoldView from '../customer/CustomerGoldView';
-
-import CustomerGoldView from '../customer/CustomerGoldView';
+import SkuGoldView from '../sku/SkuGoldView';
 
 export default function GoldView({ datasetId }: { datasetId: string }) {
   if (datasetId === 'customer-database') return <CustomerGoldView />;
-  if (datasetId === 'customer-database') return <CustomerGoldView />;
+  if (datasetId === 'sku-hierarchy') return <SkuGoldView />;
   return (
     <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-12 flex flex-col items-center text-center">
       <div className="w-20 h-20 bg-gold-bg rounded-full flex items-center justify-center mb-6">
