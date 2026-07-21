@@ -1,9 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Download, Search, ShieldCheck, X } from 'lucide-react';
 
-import { CUSTOMER_GOLD_DEMO_ROWS, CUSTOMER_GOLD_SCHEMA } from './customerGoldDemo';
+import { CUSTOMER_GOLD_DEMO_ROWS, CUSTOMER_GOLD_SCHEMA, getCustomerGoldDemoStats } from './customerGoldDemo';
 
 export default function CustomerGoldView() {
+  const reliabilityStats = getCustomerGoldDemoStats();
+  const customerRowsChecked = reliabilityStats.trusted + reliabilityStats.blocked;
+  const reliability = (reliabilityStats.trusted / customerRowsChecked) * 100;
+  const reliabilityColor = reliability >= 90 ? 'text-green-700' : reliability >= 70 ? 'text-amber-600' : 'text-red-600';
+  const reliabilityBar = reliability >= 90 ? 'bg-green-600' : reliability >= 70 ? 'bg-amber-500' : 'bg-red-500';
   const [origin, setOrigin] = useState('');
   const [city, setCity] = useState('');
   const [province, setProvince] = useState('');
@@ -34,6 +39,15 @@ export default function CustomerGoldView() {
     <div className="px-4 py-3 rounded-[8px] border border-amber-200 bg-amber-50 text-amber-900 text-[13px] flex items-center justify-between"><span><strong>Gold prototype:</strong> dummy trusted records demonstrate how previous Silver issues appear after resolution.</span><span className="px-2 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">Read-only demo</span></div>
 
     <div className="flex items-center justify-between"><div><h2 className="text-[18px] font-semibold text-text-main">Gold Customer Master</h2><p className="text-[13px] text-text-muted mt-1">Canonical, trusted customer records ready for downstream use.</p></div><button onClick={exportSample} className="h-10 px-4 rounded-[7px] bg-[#B58A00] hover:bg-[#987400] text-white text-[13px] font-semibold inline-flex items-center"><Download className="w-4 h-4 mr-2" />Export sample</button></div>
+
+    <div className="rounded-[10px] border border-border-subtle bg-white p-6 shadow-subtle">
+      <div className="mb-3 flex items-center justify-between gap-5">
+        <div><h3 className="text-[13px] font-semibold uppercase tracking-wider text-text-muted">Customer Data Reliability</h3><p className="mt-0.5 text-[12px] text-text-muted">Share of customer records that are clean or have completed anomaly review and are eligible for Gold</p></div>
+        <p className={`text-[36px] font-bold ${reliabilityColor}`}>{reliability.toFixed(2)}%</p>
+      </div>
+      <div className="h-3 w-full overflow-hidden rounded-full border border-border-subtle bg-surface-bg"><div className={`h-full transition-all duration-500 ${reliabilityBar}`} style={{ width: `${reliability}%` }} /></div>
+      <p className="mt-2 text-[12px] text-text-muted">{reliabilityStats.trusted.toLocaleString()} of {customerRowsChecked.toLocaleString()} customers verified · {reliabilityStats.blocked.toLocaleString()} records pending review in Silver</p>
+    </div>
 
     <div className="grid grid-cols-4 gap-6">{[
       ['Trusted Customers', CUSTOMER_GOLD_DEMO_ROWS.length, 'text-text-main'],
