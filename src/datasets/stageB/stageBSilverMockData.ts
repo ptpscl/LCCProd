@@ -128,14 +128,6 @@ export interface MatchStatusSummaryItem {
   definition: string;
 }
 
-export interface InheritedDatasetAnomaly {
-  source: 'Stage A' | 'MMS';
-  code: string;
-  affectedRows: number;
-  upstreamStatus: 'Reviewed upstream' | 'Validated upstream' | 'No anomalies';
-  definition: string;
-}
-
 export const STAGE_B_MMS_ROWS_CHECKED = 133_166;
 
 export const RECONCILIATION_CONTEXT = [
@@ -169,24 +161,15 @@ export const REVIEW_VIEW_DEFINITIONS: Record<ReviewView, string> = {
 };
 
 export const MATCH_STATUS_SUMMARY: MatchStatusSummaryItem[] = [
-  { status: 'BOTH_UNDERSTATED', reviewView: 'Basket', affectedMmsRows: 15, definition: 'Both Stage A loyalty sales and MMS sales are below the provisional basket comparison amount.' },
-  { status: 'MMS_UNDERSTATED', reviewView: 'Basket', affectedMmsRows: 20, definition: 'The MMS basket total is provisionally understated relative to the Stage A comparison.' },
-  { status: 'LOYALTY_ONLY', reviewView: 'Audit Row', affectedMmsRows: 0, definition: 'A Stage A loyalty record is retained for reconciliation accounting without an MMS-spine row.' },
-  { status: 'LOYALTY_UNDERSTATED', reviewView: 'Basket', affectedMmsRows: 18, definition: 'The Stage A loyalty basket total is provisionally understated relative to MMS.' },
-  { status: 'NON_LOYALTY', reviewView: 'Basket', affectedMmsRows: 30, definition: 'An MMS-spine basket has no loyalty-side contribution and remains in the reconciliation audit.' },
-  { status: 'JOINED - Exact/Near Match', reviewView: 'Row Comparison', affectedMmsRows: 132_980, definition: 'The records joined on all six keys and the sales comparison is exact or within the approved near-match tolerance.' },
-  { status: 'JOINED - Mismatch', reviewView: 'Row Comparison', affectedMmsRows: 54, definition: 'The records joined on all six keys but their provisional sales comparison requires review.' },
-  { status: 'UNJOINABLE', reviewView: 'Candidate Comparison', affectedMmsRows: 32, definition: 'A confirmed six-key join was blocked by a transaction-number or transaction-type difference.' },
-  { status: 'UNCERTAIN', reviewView: 'Candidate Comparison', affectedMmsRows: 17, definition: 'The available candidates do not support a confident Stage B classification.' },
-];
-
-export const INHERITED_DATASET_ANOMALIES: InheritedDatasetAnomaly[] = [
-  { source: 'Stage A', code: 'HAS_NEGATIVE_QTY_OR_LOYALTY_SALES', affectedRows: 21, upstreamStatus: 'Reviewed upstream', definition: 'Stage A lineage flag for negative quantity or loyalty sales; its upstream review result is preserved.' },
-  { source: 'Stage A', code: 'CUSTOMER_BIRTHDAY_AGE_OVER_120', affectedRows: 1, upstreamStatus: 'Reviewed upstream', definition: 'Customer-data anomaly inherited from Stage A for lineage only.' },
-  { source: 'MMS', code: 'MMS_NEGATIVE_QTY_OR_SALES', affectedRows: 32, upstreamStatus: 'Reviewed upstream', definition: 'MMS-only validation flag inherited from the Silver MMS review.' },
-  { source: 'MMS', code: 'MMS_NEGATIVE_SALES_IN_SALE_TRANSACTION_TYPE', affectedRows: 16, upstreamStatus: 'Reviewed upstream', definition: 'MMS-only negative-sales flag inherited from the Silver MMS review.' },
-  { source: 'MMS', code: 'MMS_MISSING_CRITICAL_KEY', affectedRows: 5, upstreamStatus: 'Reviewed upstream', definition: 'MMS-only missing-key flag inherited from the Silver MMS review.' },
-  { source: 'MMS', code: 'MULTIPLE_MMS_6KEY_ROWS', affectedRows: 0, upstreamStatus: 'No anomalies', definition: 'MMS six-key duplicate validation remains visible even when the current upstream count is zero.' },
+  { status: 'BOTH_UNDERSTATED', reviewView: 'Basket', affectedMmsRows: 15, definition: 'The same 4-key basket exists in MMS and Loyalty, but each side contains one or more SKU rows missing from the other.' },
+  { status: 'MMS_UNDERSTATED', reviewView: 'Basket', affectedMmsRows: 20, definition: 'The basket exists in both sources, but one or more Loyalty SKU rows are missing from MMS. MMS is incomplete compared with Loyalty.' },
+  { status: 'LOYALTY_ONLY', reviewView: 'Audit Row', affectedMmsRows: 0, definition: 'The transaction exists in Loyalty or Stage A but has no corresponding MMS transaction. It remains in the full audit and does not create an MMS output row.' },
+  { status: 'LOYALTY_UNDERSTATED', reviewView: 'Basket', affectedMmsRows: 18, definition: 'The basket exists in both sources, but one or more MMS SKU rows are missing from Loyalty. Loyalty is incomplete compared with MMS.' },
+  { status: 'NON_LOYALTY', reviewView: 'Basket', affectedMmsRows: 30, definition: 'The MMS transaction has no Loyalty basket. This is generally a valid non-loyal transaction and is not automatically an anomaly.' },
+  { status: 'JOINED - Exact/Near Match', reviewView: 'Row Comparison', affectedMmsRows: 132_980, definition: 'MMS and Loyalty joined on all 6 keys, and their sales values are equal or within the approved one-peso tolerance.' },
+  { status: 'JOINED - Mismatch', reviewView: 'Row Comparison', affectedMmsRows: 54, definition: 'MMS and Loyalty joined on all 6 keys, but their sales values do not agree. MATCH_QUALITY identifies the mismatch subtype.' },
+  { status: 'UNJOINABLE', reviewView: 'Candidate Comparison', affectedMmsRows: 32, definition: 'Possible matching evidence exists, but the records cannot be joined safely because of transaction-number or transaction-type key differences.' },
+  { status: 'UNCERTAIN', reviewView: 'Candidate Comparison', affectedMmsRows: 17, definition: 'The record does not clearly fit any current reconciliation rule and requires manual review or future rule refinement.' },
 ];
 
 const exactQualities: MatchQuality[] = [
