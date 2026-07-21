@@ -22,7 +22,7 @@ export type RelationalFlag =
   | 'DROPPED_SKU_TRANSACTION';
 
 export type IssueStatus = 'For review' | 'Reviewed';
-export type ResolutionChoice = 'Accept as Valid' | 'Exclude from Output';
+export type ResolutionChoice = 'Accept as Valid' | 'Exclude from Output' | 'Alert Data Manager';
 
 export interface StageCRow {
   id: string;
