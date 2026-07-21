@@ -17,6 +17,19 @@ interface MmsBronzeViewProps {
   refreshTrigger: number;
 }
 
+const MMS_SCHEMA: { column: string; description: string }[] = [
+  { column: 'DATE', description: 'Raw transaction date text exactly as supplied; may be blank or malformed' },
+  { column: 'TRANSACTION NUMBER', description: 'Raw transaction identifier text; may be blank' },
+  { column: 'REGISTER NUMBER', description: 'Raw register or POS identifier text; may be blank' },
+  { column: 'STORE CODE', description: 'Raw store identifier text; may be blank' },
+  { column: 'STORE CATEGORIZATION', description: 'Raw store category text; may be blank' },
+  { column: 'SKU CODE', description: 'Raw product SKU identifier text; may be blank' },
+  { column: 'TRANSACTION TYPE', description: 'Raw transaction-type text; may be blank' },
+  { column: 'MMS SALES', description: 'Raw sales-value text exactly as supplied; may be blank or nonnumeric' },
+  { column: 'QTY SOLD', description: 'Raw quantity-sold text exactly as supplied; may be blank or nonnumeric' },
+  { column: 'MARGIN', description: 'Raw margin-value text exactly as supplied; may be blank or nonnumeric' },
+];
+
 const STATUS_DISPLAY: Record<MmsStoredStatus, { label: string; className: string }> = {
   uploaded: { label: 'Uploaded', className: 'bg-gray-100 text-gray-800' },
   ingested: { label: 'Ingested', className: 'bg-green-100 text-green-800' },
@@ -283,6 +296,30 @@ export default function MmsBronzeView({ refreshTrigger }: MmsBronzeViewProps) {
                       );
                     })
                   )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle overflow-hidden">
+            <div className="px-6 py-5 border-b border-border-subtle">
+              <h3 className="text-[16px] font-semibold text-text-main">Schema</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-border-subtle bg-surface-bg">
+                    <th className="px-6 py-3 text-[12px] font-semibold text-text-muted uppercase tracking-wider">Column</th>
+                    <th className="px-6 py-3 text-[12px] font-semibold text-text-muted uppercase tracking-wider">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {MMS_SCHEMA.map(schema => (
+                    <tr key={schema.column} className="hover:bg-surface-bg transition-colors">
+                      <td className="px-6 py-4 text-[13px] font-mono text-text-main whitespace-nowrap">{schema.column}</td>
+                      <td className="px-6 py-4 text-[13px] text-text-muted">{schema.description}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
