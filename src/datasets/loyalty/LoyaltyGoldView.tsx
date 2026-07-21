@@ -1,10 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Download, Search, ShieldCheck, X } from 'lucide-react';
 import { getLoyaltyGoldDemoRows, getLoyaltyGoldDemoStats, LOYALTY_GOLD_SCHEMA } from './loyaltyGoldDemo';
+import { LOYALTY_ROWS_CHECKED } from './loyaltySilverDemo';
 
 export default function LoyaltyGoldView() {
   const allRows = getLoyaltyGoldDemoRows();
   const stats = getLoyaltyGoldDemoStats();
+  const reliability = (stats.trusted / LOYALTY_ROWS_CHECKED) * 100;
+  const reliabilityColor = reliability >= 99 ? 'text-green-700' : reliability >= 95 ? 'text-amber-600' : 'text-red-600';
+  const reliabilityBar = reliability >= 99 ? 'bg-green-600' : reliability >= 95 ? 'bg-amber-500' : 'bg-red-500';
   const [origin, setOrigin] = useState('');
   const [store, setStore] = useState('');
   const [transactionInput, setTransactionInput] = useState('');
@@ -30,6 +34,14 @@ export default function LoyaltyGoldView() {
   return <div className="space-y-6">
     <div className="flex items-center justify-between rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900"><span><strong>Gold prototype:</strong> trusted Loyalty records demonstrate clean and accepted resolved Silver outputs.</span><span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold">Read-only demo</span></div>
     <div className="flex items-center justify-between"><div><h2 className="text-[18px] font-semibold">Gold Loyalty Sales</h2><p className="mt-1 text-[13px] text-text-muted">Curated Loyalty transactions ready for reporting and staged merging.</p></div><button onClick={exportRows} className="inline-flex h-10 items-center rounded-[7px] bg-[#B58A00] px-4 text-[13px] font-semibold text-white hover:bg-[#987400]"><Download className="mr-2 h-4 w-4" />Export sample</button></div>
+    <div className="rounded-[10px] border border-border-subtle bg-white p-6 shadow-subtle">
+      <div className="mb-3 flex items-center justify-between gap-5">
+        <div><h3 className="text-[13px] font-semibold uppercase tracking-wider text-text-muted">Loyalty Data Reliability</h3><p className="mt-0.5 text-[12px] text-text-muted">Share of Loyalty rows that are clean or have completed anomaly review and are eligible for Gold</p></div>
+        <p className={`text-[36px] font-bold ${reliabilityColor}`}>{reliability.toFixed(2)}%</p>
+      </div>
+      <div className="h-3 w-full overflow-hidden rounded-full border border-border-subtle bg-surface-bg"><div className={`h-full transition-all duration-500 ${reliabilityBar}`} style={{ width: `${reliability}%` }} /></div>
+      <p className="mt-2 text-[12px] text-text-muted">{stats.trusted.toLocaleString()} of {LOYALTY_ROWS_CHECKED.toLocaleString()} rows verified · {stats.blocked.toLocaleString()} rule hits pending review in Silver</p>
+    </div>
     <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">{[
       ['Trusted Transactions', stats.trusted, 'text-text-main'],
       ['Clean from Silver', stats.clean, 'text-green-700'],
