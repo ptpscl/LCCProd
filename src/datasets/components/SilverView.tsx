@@ -4,6 +4,7 @@ import MmsSilverView from '../mms/MmsSilverView';
 import StageBSilverView from '../stageB/StageBSilverView';
 import StageCSilverView from '../stageC/StageCSilverView';
 import LoyaltySilverView from '../loyalty/LoyaltySilverView';
+import StageASilverView from '../stageA/StageASilverView';
 
 export default function SilverView({ datasetId }: { datasetId: string }) {
   if (datasetId === 'customer-database') return <CustomerSilverView />;
@@ -13,6 +14,9 @@ export default function SilverView({ datasetId }: { datasetId: string }) {
   }
   if (datasetId === 'mms-sales') {
     return <MmsSilverView />;
+  }
+  if (datasetId === 'stage-a') {
+    return <StageASilverView />;
   }
   if (datasetId === 'stage-b') {
     return <StageBSilverView />;
