@@ -32,6 +32,15 @@ export default function Topbar({ currentView, onUploadClick }: TopbarProps) {
     );
   }
 
+  if (currentView === 'gold/stage-c') {
+    title = 'Gold / Stage C (SKU Hierarchy + Loyalty/MMS Transactions)';
+    statusTag = (
+      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase bg-gold-bg text-gold-text">
+        clean
+      </span>
+    );
+  }
+
   if (currentView === 'silver/stage-b') {
     title = 'Silver / Stage B (Loyalty + Customer DB + MMS)';
     statusTag = (
