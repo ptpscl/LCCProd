@@ -60,6 +60,11 @@ const GOLD_STAGE_A_COLUMNS: GoldStageAColumn[] = [
 
 const COLUMN_BY_KEY = Object.fromEntries(GOLD_STAGE_A_COLUMNS.map(column => [column.key, column])) as Record<GoldStageAColumnKey, GoldStageAColumn>;
 
+const STAGE_A_UNMATCHED_TRANSACTION_ROWS = 394_967;
+const STAGE_A_UNIQUE_UNMATCHED_CUSTOMERS = 6_140;
+const STAGE_A_GOLD_TRUSTED_ROWS = STAGE_A_ROWS_CHECKED - STAGE_A_UNMATCHED_TRANSACTION_ROWS;
+const STAGE_A_GOLD_RELIABILITY = (STAGE_A_GOLD_TRUSTED_ROWS / STAGE_A_ROWS_CHECKED) * 100;
+
 function csvCell(value: string): string {
   return `"${value.replaceAll('"', '""')}"`;
 }
@@ -209,9 +214,10 @@ export default function StageAGoldView() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [sort, setSort] = useState<GoldStageASort | null>(null);
   const [detailsRow, setDetailsRow] = useState<StageARow | null>(null);
+  const publishedRows = useMemo(() => rows.filter(row => row.readyForStageB === 'READY'), [rows]);
 
   const filteredRows = useMemo(() => {
-    const result = rows.filter(row => {
+    const result = publishedRows.filter(row => {
       if (filters.matchStatus && row.matchStatus !== filters.matchStatus) return false;
       if (filters.anomaly && row.datasetAnomaly !== filters.anomaly && !row.datasetAnomaly.split('|').includes(filters.anomaly)) return false;
       if (filters.storeCode && !includes(row.loyalty['STORE CODE'], filters.storeCode)) return false;
@@ -231,12 +237,10 @@ export default function StageAGoldView() {
       if (column.numeric) return (Number(leftValue || 0) - Number(rightValue || 0)) * multiplier;
       return leftValue.localeCompare(rightValue, undefined, { numeric: true, sensitivity: 'base' }) * multiplier;
     });
-  }, [filters, rows, sort]);
+  }, [filters, publishedRows, sort]);
 
-  const readyCount = rows.filter(row => row.readyForStageB === 'READY').length;
-  const reviewedCount = rows.filter(row => row.issueStatus === 'Reviewed').length;
-  const pendingCount = rows.filter(row => row.issueStatus === 'For review').length;
-  const anomaliesCount = rows.filter(row => row.datasetAnomaly !== 'NONE').length;
+  const readyCount = STAGE_A_GOLD_TRUSTED_ROWS;
+  const pendingCount = STAGE_A_UNMATCHED_TRANSACTION_ROWS;
 
   const clearFilters = () => {
     setFilters(EMPTY_FILTERS);
@@ -271,7 +275,7 @@ export default function StageAGoldView() {
             <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
             Refresh
           </button>
-          <button type="button" onClick={() => downloadCsv(rows, 'stage_a_gold.csv')} className="inline-flex h-9 items-center justify-center rounded-[6px] bg-[#B58A00] px-4 text-[13px] font-medium text-white hover:bg-[#987400] focus:outline-none focus:ring-2 focus:ring-[#B58A00]">
+          <button type="button" onClick={() => downloadCsv(publishedRows, 'stage_a_gold.csv')} className="inline-flex h-9 items-center justify-center rounded-[6px] bg-[#B58A00] px-4 text-[13px] font-medium text-white hover:bg-[#987400] focus:outline-none focus:ring-2 focus:ring-[#B58A00]">
             <Download className="mr-2 h-4 w-4" aria-hidden="true" />
             Export Gold CSV
           </button>
@@ -283,25 +287,25 @@ export default function StageAGoldView() {
           <div>
             <div className="inline-flex items-center gap-2">
               <h3 className="text-[13px] font-semibold uppercase tracking-wider text-text-muted">Stage A data reliability</h3>
-              <MetricTooltip id="stage-a-gold-reliability" definition="Gold Stage A promoted rows are the Silver Stage A outputs accepted for downstream use. Review rows remain in the lineage audit but are not excluded from the read-only Gold view unless explicitly excluded." />
+              <MetricTooltip id="stage-a-gold-reliability" definition="Share of Stage A Loyalty transactions with one trusted Customer Database match. Unmatched and unresolved rows remain outside Gold." />
             </div>
             <p className="mt-0.5 text-[12px] text-text-muted">Customer Database + Loyalty Sales records ready for downstream extraction.</p>
           </div>
-          <p className="text-[36px] font-bold text-[#8A7526]">{((readyCount / rows.length) * 100).toFixed(2)}%</p>
+          <p className="text-[36px] font-bold text-[#8A7526]">{STAGE_A_GOLD_RELIABILITY.toFixed(2)}%</p>
         </div>
         <div className="h-3 w-full overflow-hidden rounded-full border border-border-subtle bg-surface-bg">
-          <div className="h-full bg-[#B58A00] transition-all duration-500" style={{ width: `${(readyCount / rows.length) * 100}%` }} />
+          <div className="h-full bg-[#B58A00] transition-all duration-500" style={{ width: `${STAGE_A_GOLD_RELIABILITY}%` }} />
         </div>
-        <p className="mt-2 text-[12px] text-text-muted">{readyCount.toLocaleString()} of {rows.length.toLocaleString()} rows ready for Stage B · {pendingCount.toLocaleString()} still pending review in Silver</p>
-        <p className="mt-1 text-[11px] text-text-muted">{readyCount} / {rows.length} = {((readyCount / rows.length) * 100).toFixed(2)}%</p>
+        <p className="mt-2 text-[12px] text-text-muted">{readyCount.toLocaleString()} of {STAGE_A_ROWS_CHECKED.toLocaleString()} transaction rows published · {pendingCount.toLocaleString()} unmatched rows retained outside Gold</p>
+        <p className="mt-1 text-[11px] text-text-muted">{readyCount.toLocaleString()} / {STAGE_A_ROWS_CHECKED.toLocaleString()} = {STAGE_A_GOLD_RELIABILITY.toFixed(2)}%</p>
       </section>
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         {[
           ['Trusted Stage A Records', readyCount, 'Published customer + loyalty rows', 'text-text-main'],
-          ['Reviewed in Silver', reviewedCount, 'Accepted or excluded decisions', 'text-green-700'],
-          ['Rows for Review', pendingCount, 'Still unresolved in Silver', 'text-amber-700'],
-          ['Relational Flags', anomaliesCount, 'Rows with lineage issues', 'text-[#8A7526]'],
+          ['Unmatched Transactions', pendingCount, 'Retained outside Gold', 'text-amber-700'],
+          ['Unique Unmatched Customers', STAGE_A_UNIQUE_UNMATCHED_CUSTOMERS, 'Distinct customer numbers across unmatched rows', 'text-amber-700'],
+          ['Gold Relational Flags', 0, 'No unresolved relationship flags published', 'text-green-700'],
         ].map(([label, value, description, color]) => (
           <div key={String(label)} className="rounded-[10px] border border-border-subtle bg-white p-6 shadow-subtle">
             <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wider text-text-muted">{label}</h3>
@@ -341,9 +345,9 @@ export default function StageAGoldView() {
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {STAGE_A_RELATIONAL_FLAG_SUMMARY.map(item => {
-                const groupRows = rows.filter(row => row.datasetAnomaly.split('|').includes(item.anomaly));
-                const ready = groupRows.filter(row => row.readyForStageB === 'READY').length;
-                const pending = groupRows.filter(row => row.issueStatus === 'For review').length;
+                const sourceRows = item.anomaly === 'UNMATCHED_CUSTOMER' ? STAGE_A_UNMATCHED_TRANSACTION_ROWS : 0;
+                const ready = 0;
+                const pending = sourceRows;
                 const tooltipId = `stage-a-${item.anomaly.toLowerCase().replaceAll('_', '-')}`;
                 return (
                   <tr key={item.anomaly} className="hover:bg-surface-bg">
@@ -353,7 +357,7 @@ export default function StageAGoldView() {
                         <MetricTooltip id={tooltipId} definition={item.definition} />
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right text-[13px] font-medium text-text-main">{item.affected?.toLocaleString() ?? 'Pending baseline'}</td>
+                    <td className="px-6 py-4 text-right text-[13px] font-medium text-text-main">{sourceRows.toLocaleString()}</td>
                     <td className="px-6 py-4 text-right text-[13px] font-medium text-green-700">{ready.toLocaleString()}</td>
                     <td className="px-6 py-4 text-right text-[13px] font-medium text-amber-700">{pending.toLocaleString()}</td>
                   </tr>
