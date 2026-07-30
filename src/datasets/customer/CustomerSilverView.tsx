@@ -362,7 +362,7 @@ export default function CustomerSilverView() {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] border-collapse text-left">
           <thead><tr className="border-b border-border-subtle bg-surface-bg">
-            <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-text-muted">Anomaly</th>
+            <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-text-muted"><div className="inline-flex items-center gap-2">Anomaly<InfoTip id="customer-silver-anomaly-definition" definition="Each anomaly describes one customer-data quality issue. The same row can appear under multiple anomaly rules." /></div></th>
             <th className="w-28 px-6 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-text-muted">Class</th>
             <th className="w-36 px-6 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-text-muted">Affected rows</th>
             <th className="w-36 px-6 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-text-muted">For review</th>
@@ -545,4 +545,5 @@ function ResolutionModal({ row, form, setForm, onClose, onSave }: { row: any; fo
     <div className="shrink-0 px-6 py-4 border-t border-border-subtle flex items-center justify-between gap-3"><p className="text-[11px] text-text-muted">Resolution reclassifies the row to class 0 while retaining its original issues for audit.</p><div className="flex gap-3"><button onClick={onClose} className="h-10 px-4 rounded-[6px] border border-border-subtle text-[13px]">Cancel</button><button onClick={onSave} disabled={!form.resolution_note?.trim()} className="h-10 px-4 rounded-[6px] bg-[#0054A6] text-white text-[13px] font-semibold inline-flex items-center disabled:cursor-not-allowed disabled:opacity-45"><CheckCircle2 className="w-4 h-4 mr-2" />Complete resolution</button></div></div>
   </div></div>;
 }
+
 
