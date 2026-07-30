@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Download, Filter, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Download, Info, ShieldCheck, Sparkles } from 'lucide-react';
 import {
   RELATIONAL_FLAG_SUMMARY,
   SKU_MATCH_COLUMNS,
@@ -109,9 +109,10 @@ export default function StageCGoldView() {
   const matchedCount = rows.filter(row => row.relationalFlag === 'SKU_SALES_MATCHED').length;
   const unresolvedCount = rows.filter(row => row.issueStatus === 'For review').length;
   const reviewedCount = rows.filter(row => row.issueStatus === 'Reviewed').length;
-  const unmatchedCount = rows.filter(row => row.relationalFlag === 'SKU_SALES_UNMATCHED').length;
-  const droppedCount = rows.filter(row => row.relationalFlag === 'DROPPED_SKU_TRANSACTION').length;
   const readyCount = matchedCount + reviewedCount;
+  const reliability = rows.length === 0 ? 0 : (readyCount / rows.length) * 100;
+  const reliabilityColor = reliability >= 90 ? 'text-green-700' : reliability >= 70 ? 'text-amber-600' : 'text-red-600';
+  const reliabilityBar = reliability >= 90 ? 'bg-green-600' : reliability >= 70 ? 'bg-amber-500' : 'bg-red-500';
 
   const toggleSort = (key: GoldStageCSortKey) => setSort(current => {
     if (!current || current.key !== key) return { key, direction: 'asc' };
@@ -148,12 +149,41 @@ export default function StageCGoldView() {
         </button>
       </div>
 
+      <section className="rounded-[10px] border border-border-subtle bg-white p-6 shadow-subtle">
+        <div className="mb-3 flex items-center justify-between gap-5">
+          <div>
+            <div className="group relative inline-flex items-center gap-2">
+              <h3 className="text-[13px] font-semibold uppercase tracking-wider text-text-muted">Stage C data reliability</h3>
+              <button type="button" aria-describedby="stage-c-reliability-definition" className="rounded-full text-text-muted hover:text-text-main focus:outline-none focus:ring-2 focus:ring-brand-600">
+                <Info className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <span
+                id="stage-c-reliability-definition"
+                role="tooltip"
+                className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 w-[380px] max-w-[70vw] rounded-[6px] bg-gray-900 px-3 py-2 text-[11px] font-normal leading-4 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+              >
+                Transactions published to Gold are the matched records plus the rows reviewed and accepted in Silver. Unmatched and dropped rows stay outside Gold.
+              </span>
+            </div>
+            <p className="mt-0.5 text-[12px] text-text-muted">Share of Stage C rows eligible for Gold after relational review.</p>
+          </div>
+          <p className={`text-[36px] font-bold ${reliabilityColor}`}>{reliability.toFixed(2)}%</p>
+        </div>
+        <div className="h-3 w-full overflow-hidden rounded-full border border-border-subtle bg-surface-bg">
+          <div className={`h-full transition-all duration-500 ${reliabilityBar}`} style={{ width: `${reliability}%` }} />
+        </div>
+        <p className="mt-2 text-[12px] text-text-muted">
+          {readyCount.toLocaleString()} of {rows.length.toLocaleString()} transaction rows published to Gold
+          {' '}· {unresolvedCount.toLocaleString()} rows remain in Silver review
+        </p>
+      </section>
+
       <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
         {[
+          ['Trusted Records', readyCount, 'text-text-main'],
           ['Matched', matchedCount, 'text-green-700'],
-          ['Rows for Review', unresolvedCount, 'text-amber-700'],
+          ['For Review', unresolvedCount, 'text-amber-700'],
           ['Reviewed', reviewedCount, 'text-blue-700'],
-          ['Relational Flags', RELATIONAL_FLAG_SUMMARY.length, 'text-text-main'],
         ].map(([label, value, color]) => (
           <div key={String(label)} className="rounded-[10px] border border-border-subtle bg-white p-6 shadow-subtle">
             <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wider text-text-muted">{label}</h3>
@@ -168,7 +198,7 @@ export default function StageCGoldView() {
           <div>
             <h3 className="text-[14px] font-semibold text-text-main">Gold publication rule</h3>
             <p className="mt-1 text-[12px] text-text-muted">
-              Accepted resolved record → clean Silver Stage C record → one trusted output per transaction line.
+              Accepted resolved record - clean Silver Stage C record - one trusted output per transaction line.
               Unresolved and excluded rows remain in Silver audit and do not enter Gold as published data.
             </p>
           </div>
@@ -244,7 +274,6 @@ export default function StageCGoldView() {
             </select>
           </label>
           <button type="button" onClick={clearFilters} className="inline-flex h-10 items-center rounded-[6px] border border-border-subtle px-4 text-[13px] text-text-main hover:bg-surface-bg focus:outline-none focus:ring-2 focus:ring-[#B58A00]">
-            <Filter className="mr-2 h-4 w-4" />
             Clear
           </button>
         </div>
@@ -284,7 +313,13 @@ export default function StageCGoldView() {
                 <tr key={row.id} className="hover:bg-surface-bg">
                   {GOLD_STAGE_C_COLUMNS.map(column => (
                     <td key={column.key} className={`whitespace-nowrap px-4 py-3 text-[12px] text-text-main ${column.numeric ? 'text-right font-mono' : ''}`}>
-                      {column.key === 'relationalFlag' ? <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium ${formatFlag(row.relationalFlag)}`}>{row.relationalFlag}</span> : column.key === 'issueStatus' ? <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium ${row.issueStatus === 'Reviewed' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{row.issueStatus}</span> : column.value(row)}
+                      {column.key === 'relationalFlag' ? (
+                        <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium ${formatFlag(row.relationalFlag)}`}>{row.relationalFlag}</span>
+                      ) : column.key === 'issueStatus' ? (
+                        <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium ${row.issueStatus === 'Reviewed' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{row.issueStatus}</span>
+                      ) : (
+                        column.value(row)
+                      )}
                     </td>
                   ))}
                   <td className="px-4 py-3 text-right">
@@ -329,7 +364,13 @@ export default function StageCGoldView() {
             <tbody className="divide-y divide-border-subtle">
               {[...TRANSACTION_COLUMNS, ...SKU_MATCH_COLUMNS, 'RELATIONAL_FLAG', 'ISSUE_STATUS', 'RESOLUTION', 'AUDIT_NOTE', 'RESOLVED_BY', 'RESOLVED_AT'].map(column => (
                 <tr key={column}>
-                  <td className="px-6 py-4 text-[12px] font-medium text-text-muted">{TRANSACTION_COLUMNS.includes(column as (typeof TRANSACTION_COLUMNS)[number]) ? 'Transaction' : SKU_MATCH_COLUMNS.includes(column as (typeof SKU_MATCH_COLUMNS)[number]) ? 'Matched SKU' : 'Gold audit'}</td>
+                  <td className="px-6 py-4 text-[12px] font-medium text-text-muted">
+                    {TRANSACTION_COLUMNS.includes(column as (typeof TRANSACTION_COLUMNS)[number])
+                      ? 'Transaction'
+                      : SKU_MATCH_COLUMNS.includes(column as (typeof SKU_MATCH_COLUMNS)[number])
+                        ? 'Matched SKU'
+                        : 'Gold audit'}
+                  </td>
                   <td className="px-6 py-4 font-mono text-[13px] text-text-main">{column}</td>
                   <td className="px-6 py-4 text-[13px] text-text-muted">
                     {column === 'RELATIONAL_FLAG' ? 'Stage C relational classification inherited from Silver.' :
