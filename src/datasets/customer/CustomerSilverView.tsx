@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, FileSearch, Pencil, RefreshCw, Search, ShieldCheck, X } from 'lucide-react';
+import { CheckCircle2, Download, FileSearch, Info, Pencil, RefreshCw, Search, ShieldCheck, X } from 'lucide-react';
 
 import {
   CustomerSilverRun,
@@ -53,6 +53,19 @@ const EMPTY_STATS: CustomerSilverStats = {
   class_1b_rows: 0,
   latest_run: null,
 };
+
+function InfoTip({ id, definition }: { id: string; definition: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button type="button" aria-describedby={id} className="rounded-full text-text-muted hover:text-text-main focus:outline-none focus:ring-2 focus:ring-brand-600">
+        <Info className="h-4 w-4" aria-hidden="true" />
+      </button>
+      <span id={id} role="tooltip" className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 w-[340px] max-w-[70vw] rounded-[6px] bg-gray-900 px-3 py-2 text-[11px] font-normal leading-4 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        {definition}
+      </span>
+    </span>
+  );
+}
 
 export default function CustomerSilverView() {
   const initialDemoRows = applyCustomerDemoResolutions(CUSTOMER_SILVER_DEMO_ROWS);
@@ -305,7 +318,7 @@ export default function CustomerSilverView() {
         <div className="flex items-start gap-4">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-silver-bg text-silver-text"><ShieldCheck className="h-6 w-6" /></div>
           <div>
-            <h3 className="text-[16px] font-semibold text-text-main">Customer validation summary</h3>
+            <div className="inline-flex items-center gap-2"><h3 className="text-[16px] font-semibold text-text-main">Customer validation summary</h3><InfoTip id="customer-silver-summary-definition" definition="Customer records are checked for missing values, duplicates, and age or birthday inconsistencies before promotion to Gold." /></div>
             <p className="mt-1 text-[13px] text-text-muted">Customer database · 0 / 1A / 1B anomaly classification</p>
             <p className="mt-1 text-[11px] text-text-muted">Refreshed {lastRefreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
           </div>
@@ -337,7 +350,7 @@ export default function CustomerSilverView() {
     <section className="overflow-hidden rounded-[10px] border border-border-subtle bg-white shadow-subtle">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
         <div>
-          <h3 className="text-[16px] font-semibold text-text-main">Dataset rule summary</h3>
+          <div className="inline-flex items-center gap-2"><h3 className="text-[16px] font-semibold text-text-main">Dataset rule summary</h3><InfoTip id="customer-silver-rules-definition" definition="Each rule describes a customer-data quality issue. A single row can match multiple rules." /></div>
           <p className="mt-1 text-[12px] text-text-muted">
             Counts may overlap because one customer can trigger multiple rules. Prototype counts reflect the displayed sample rows.
           </p>
@@ -532,3 +545,4 @@ function ResolutionModal({ row, form, setForm, onClose, onSave }: { row: any; fo
     <div className="shrink-0 px-6 py-4 border-t border-border-subtle flex items-center justify-between gap-3"><p className="text-[11px] text-text-muted">Resolution reclassifies the row to class 0 while retaining its original issues for audit.</p><div className="flex gap-3"><button onClick={onClose} className="h-10 px-4 rounded-[6px] border border-border-subtle text-[13px]">Cancel</button><button onClick={onSave} disabled={!form.resolution_note?.trim()} className="h-10 px-4 rounded-[6px] bg-[#0054A6] text-white text-[13px] font-semibold inline-flex items-center disabled:cursor-not-allowed disabled:opacity-45"><CheckCircle2 className="w-4 h-4 mr-2" />Complete resolution</button></div></div>
   </div></div>;
 }
+

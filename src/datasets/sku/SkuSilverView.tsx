@@ -1,6 +1,6 @@
 // SkuSilverView.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertCircle, RotateCcw, X, Download, RefreshCw, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Info, RotateCcw, X, Download, RefreshCw, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useAccess } from '../../../src/governance/useAccess';
 import {
   DEMO_SILVER, DEMO_EXCLUDED, DemoSku, DemoResolution,
@@ -8,6 +8,19 @@ import {
 } from './skuDemoData';
 
 type FamilyType = 'DUP' | 'VARIANT' | 'PROMO' | 'PROMO_ORPHAN';
+
+function InfoTip({ id, definition }: { id: string; definition: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button type="button" aria-describedby={id} className="rounded-full text-text-muted hover:text-text-main focus:outline-none focus:ring-2 focus:ring-brand-600">
+        <Info className="h-4 w-4" aria-hidden="true" />
+      </button>
+      <span id={id} role="tooltip" className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 w-[340px] max-w-[70vw] rounded-[6px] bg-gray-900 px-3 py-2 text-[11px] font-normal leading-4 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        {definition}
+      </span>
+    </span>
+  );
+}
 
 interface TagDef {
   key: string;
@@ -380,7 +393,7 @@ export default function SkuSilverView() {
               <ShieldCheck className="w-5 h-5 text-text-muted" />
             </div>
             <div>
-              <h3 className="text-[16px] font-semibold text-text-main">SKU hierarchy validation summary</h3>
+              <div className="inline-flex items-center gap-2"><h3 className="text-[16px] font-semibold text-text-main">SKU hierarchy validation summary</h3><InfoTip id="sku-silver-summary-definition" definition="SKU hierarchy rows are checked for duplicate structures, valid variants, and promo family consistency before review." /></div>
               <p className="text-[12px] text-text-muted">
                 SKU_Hierarchy_bronze.csv · anomaly tagging (NB2 + NB3) · {totalFamilies} anomaly families
                 <span className="ml-2 text-text-muted/70">Refreshed {refreshedAt.toLocaleTimeString()}</span>
