@@ -46,6 +46,11 @@ export default function Topbar({ currentView, onUploadClick }: TopbarProps) {
     statusTag = <span className="px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase bg-silver-bg text-silver-text">validated</span>;
   }
 
+  if (currentView === 'gold/stage-a') {
+    title = 'Gold / Stage A (Promoted Output)';
+    statusTag = <span className="px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase bg-gold-bg text-gold-text">clean</span>;
+  }
+
   if (!title && currentView.includes('/')) {
     const [layerId, datasetId] = currentView.split('/');
     isBronze = layerId === 'bronze';
