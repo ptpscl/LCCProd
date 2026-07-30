@@ -350,7 +350,7 @@ export default function CustomerSilverView() {
     <section className="overflow-hidden rounded-[10px] border border-border-subtle bg-white shadow-subtle">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
         <div>
-          <div className="inline-flex items-center gap-2"><h3 className="text-[16px] font-semibold text-text-main">Dataset rule summary</h3><InfoTip id="customer-silver-rules-definition" definition="Each rule describes a customer-data quality issue. A single row can match multiple rules." /></div>
+          <h3 className="text-[16px] font-semibold text-text-main">Dataset rule summary</h3>
           <p className="mt-1 text-[12px] text-text-muted">
             Counts may overlap because one customer can trigger multiple rules. Prototype counts reflect the displayed sample rows.
           </p>
@@ -362,7 +362,7 @@ export default function CustomerSilverView() {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] border-collapse text-left">
           <thead><tr className="border-b border-border-subtle bg-surface-bg">
-            <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-text-muted"><div className="inline-flex items-center gap-2">Anomaly<InfoTip id="customer-silver-anomaly-definition" definition="Each anomaly describes one customer-data quality issue. The same row can appear under multiple anomaly rules." /></div></th>
+            <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-text-muted">Anomaly</th>
             <th className="w-28 px-6 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-text-muted">Class</th>
             <th className="w-36 px-6 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-text-muted">Affected rows</th>
             <th className="w-36 px-6 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-text-muted">For review</th>
@@ -372,7 +372,6 @@ export default function CustomerSilverView() {
             {ruleSummary.map(rule => <tr key={rule.id} className="transition-colors hover:bg-surface-bg/70">
               <td className="px-6 py-4">
                 <p className="font-mono text-[12px] font-semibold text-text-main">{rule.id}</p>
-                <p className="mt-1 text-[11px] leading-4 text-text-muted">{rule.definition}</p>
               </td>
               <td className="px-6 py-4 text-center"><ClassBadge value={rule.anomalyClass} /></td>
               <td className="px-6 py-4 text-right text-[13px] font-semibold tabular-nums text-text-main">{rule.affectedRows.toLocaleString()}</td>
