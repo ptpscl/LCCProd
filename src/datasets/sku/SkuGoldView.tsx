@@ -146,7 +146,7 @@ export default function SkuGoldView() {
         </div>
         <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-5">
           <h3 className="text-[12px] font-semibold text-text-muted uppercase tracking-wider mb-1">Duplicates Merged Away</h3>
-          <p className="text-[24px] font-bold text-red-600">−{mergedAway.size}</p>
+          <p className="text-[24px] font-bold text-red-600">{mergedAway.size === 0 ? 0 : "-" + mergedAway.size}</p>
         </div>
         <div className="bg-white rounded-[10px] border border-border-subtle shadow-subtle p-5">
           <h3 className="text-[12px] font-semibold text-text-muted uppercase tracking-wider mb-1">Gold SKUs Out</h3>
